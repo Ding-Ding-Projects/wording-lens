@@ -9,6 +9,7 @@ import {
   LockManager,
   NotificationCenter,
   RAINBOW_SENTINEL,
+  REGEX_LIMITS,
   RegexWorkbench,
   TabStripEngine,
   translateColor,
@@ -30,12 +31,17 @@ export function runInteractionTests(): void {
   expect(regex.evaluate("one two").matches[1].namedGroups.word === "two", "capture table preserves named groups");
   const invalid = new RegexWorkbench("invalid").setMode("regex").setPattern("[");
   expect(!invalid.analysis().valid, "invalid regex is reported");
+  const unsupported = new RegexWorkbench("unsupported").setMode("regex").setPattern("(?>a)");
+  expect(unsupported.analysis().unsupportedConstructs.includes("atomic groups"), "unsupported constructs remain visible in analysis");
+  const oversizedPattern = new RegexWorkbench("oversized-pattern").setMode("regex").setPattern("a".repeat(REGEX_LIMITS.maxPatternLength + 1));
+  expect(!oversizedPattern.analysis().valid && oversizedPattern.analysis().error?.includes("4096"), "oversized patterns are rejected during analysis");
 
   const tabs = new TabStripEngine();
   tabs.createGroup("Writing", "writing");
   tabs.addTab({ id: "one", label: "Alpha", destination: "home", groupId: "writing" });
   tabs.addTab({ id: "two", label: "Beta", destination: "settings", pinned: true });
   tabs.addTab({ id: "three", label: "Gamma", destination: "docs", locked: true, dirty: true });
+  tabs.addTab({ id: "four", label: "Locked clean", destination: "docs", locked: true });
   tabs.setDockEdge("right").setSearch("strip", { query: "alpha" });
   expect(tabs.searchStrip().map((tab) => tab.tabId).join() === "one", "strip search is isolated and addressable");
   tabs.setSearch("groups", { query: "writing" });
@@ -49,7 +55,23 @@ export function runInteractionTests(): void {
   expect(preview.dirtyTabIds.includes("three"), "bulk close reports unsaved tabs separately");
   expect(tabs.previewBulkClose("contains", "").invalidReason === "empty-query", "bulk close rejects empty input");
   expect(tabs.previewBulkClose("contains", "[", { matchMode: "regex" }).invalidReason === "invalid-pattern", "bulk close rejects invalid regex input");
+  expect(!tabs.removeTab("four"), "locked tabs cannot be removed even when they are not dirty");
   expect(tabAccessibility(tabs.state.tabs[0], true, "right").orientation === "vertical", "side docking changes tab orientation semantics");
+
+  const restored = new TabStripEngine({
+    tabs: [{ id: "restored-one", label: "Persisted alpha", destination: "home", pinned: false, locked: false, dirty: false }],
+    groups: [],
+    searches: {
+      strip: { id: "tab-strip-search", query: "persisted", pattern: "persisted", flags: "gi", mode: "text" },
+      group: { id: "tab-group-search", query: "never-on-strip", pattern: "never-on-strip", flags: "gi", mode: "text" },
+      groups: { id: "tab-group-name-search", query: "group-only", pattern: "group-only", flags: "gi", mode: "text" },
+      master: { id: "tab-master-search", query: "persisted", pattern: "persisted", flags: "gi", mode: "text" },
+    },
+  });
+  expect(restored.searchStrip().length === 1 && restored.searchStrip()[0].tabId === "restored-one", "restored strip search hydrates its workbench");
+  expect(restored.searchAll().length === 1, "restored master search hydrates independently");
+  restored.setSearch("strip", { query: "missing" });
+  expect(restored.searchAll().length === 1 && restored.searchStrip().length === 0, "changing one restored search does not change another");
 
   const palette = new CommandPaletteModel();
   let invoked = false;
@@ -99,8 +121,17 @@ export function runInteractionTests(): void {
   confirmation.start("delete selected records", "first", "second");
   expect(!confirmation.confirm(() => undefined), "destructive action is blocked before both keys and slider");
   confirmation.verifyKey("first", true).verifyKey("second", true).setSlider(1);
-  let deleted = false;
-  expect(confirmation.confirm(() => { deleted = true; }) && deleted, "destructive action runs only after two keys and full slider");
+  let deleted = 0;
+  expect(confirmation.confirm(() => { deleted += 1; }), "destructive action runs after two keys and full slider");
+  expect(!confirmation.confirm(() => { deleted += 1; }) && deleted === 1, "destructive authorization is single-use");
+
+  const catastrophic = new RegexWorkbench("catastrophic").setMode("regex").setPattern("(a+)+$");
+  const catastrophicAnalysis = catastrophic.analysis();
+  expect(catastrophicAnalysis.catastrophic && !catastrophicAnalysis.valid, "catastrophic patterns are rejected during analysis");
+  const catastrophicEvaluation = catastrophic.evaluate("a".repeat(100_000) + "!");
+  expect(!catastrophicEvaluation.analysis.valid && catastrophicEvaluation.matches.length === 0, "catastrophic patterns are rejected before regex execution");
+  const oversized = new RegexWorkbench("oversized").setQuery("a").evaluate("a".repeat(1_000_001));
+  expect(!oversized.analysis.valid && oversized.analysis.error?.includes("1000000"), "oversized samples are rejected before regex execution");
 }
 
 runInteractionTests();

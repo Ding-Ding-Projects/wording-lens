@@ -70,6 +70,8 @@ export interface RegexAnalysis {
   readonly captureCount: number;
   readonly namedCaptures: readonly string[];
   readonly warnings: readonly string[];
+  readonly catastrophic: boolean;
+  readonly unsupportedConstructs: readonly string[];
   readonly capabilities: Readonly<Record<string, boolean>>;
 }
 
@@ -81,6 +83,7 @@ export interface RegexEvaluation {
 }
 
 const REGEX_FLAGS = ["d", "g", "i", "m", "s", "u", "v", "y"] as const;
+export const REGEX_LIMITS = Object.freeze({ maxPatternLength: 4096, maxSampleLength: 1_000_000, maxMatches: 10_000 });
 
 function copySearch(state: SearchState): SearchState {
   return { ...state };
@@ -93,6 +96,27 @@ function safeFlags(flags: string): string {
 
 function compilePattern(pattern: string, flags: string): RegExp {
   return new RegExp(pattern, safeFlags(flags));
+}
+
+function hasCatastrophicRisk(pattern: string): boolean {
+  // Nested unbounded quantifiers and ambiguous quantified alternations can take
+  // exponential time before an engine returns its first match. Reject these
+  // shapes before RegExp.exec rather than relying on an iteration cap.
+  const nestedQuantifier = /\((?:\?:|\?<[=!]|\?!)?[^()]*?(?:[+*]|\{\d+,\})[^()]*\)(?:[+*]|\{\d+,\})/.test(pattern);
+  const ambiguousAlternation = /\((?:\?:)?[^()|]+\|[^()|]+\)(?:[+*]|\{\d+,\})/.test(pattern);
+  return nestedQuantifier || ambiguousAlternation;
+}
+
+function unsupportedConstructs(pattern: string): string[] {
+  const unsupported: string[] = [];
+  if (pattern.includes("(?>")) unsupported.push("atomic groups");
+  if (/(?:[*+}]\+|\{\d+,\}\+)/.test(pattern)) unsupported.push("possessive quantifiers");
+  if (pattern.includes("&&")) unsupported.push("character-class intersection");
+  if (pattern.includes("--")) unsupported.push("character-class subtraction");
+  if (/\(\?[ims-]+\)/.test(pattern)) unsupported.push("inline modifiers");
+  if (/\(\?[A-Za-z]+\)/.test(pattern)) unsupported.push("subroutines");
+  if (/\(\?\([^)]*\)/.test(pattern)) unsupported.push("conditionals");
+  return unsupported;
 }
 
 function scanRegex(pattern: string): RegexToken[] {
@@ -182,21 +206,30 @@ export class RegexWorkbench {
 
   analysis(): RegexAnalysis {
     const pattern = this.state.mode === "text" ? escapeRegex(this.state.query) : this.state.pattern;
+    if (pattern.length > REGEX_LIMITS.maxPatternLength) {
+      return { engine: "ECMAScript RegExp", supportedFlags: REGEX_FLAGS, pattern, valid: false, error: `Pattern exceeds ${REGEX_LIMITS.maxPatternLength} characters.`, tokens: scanRegex(pattern.slice(0, REGEX_LIMITS.maxPatternLength)), captureCount: 0, namedCaptures: [], warnings: [], catastrophic: false, unsupportedConstructs: unsupportedConstructs(pattern), capabilities: {} };
+    }
     try {
       const regex = compilePattern(pattern, this.state.flags);
       const namedCaptures = [...pattern.matchAll(/\(\?<([A-Za-z_$][\w$]*)>/g)].map((match) => match[1]);
       const warnings: string[] = [];
-      if (/(\+|\*|\{\d+,\})[^|)]*(\+|\*|\{\d+,\})/.test(pattern)) warnings.push("Nested unbounded quantifiers may backtrack heavily.");
+      const catastrophic = hasCatastrophicRisk(pattern);
+      const unsupported = unsupportedConstructs(pattern);
+      if (unsupported.length) warnings.push(`Unsupported constructs remain visible: ${unsupported.join(", ")}.`);
+      if (catastrophic) warnings.push("This pattern has catastrophic backtracking risk and is refused before evaluation.");
       if (regex.sticky && !regex.global) warnings.push("Sticky matching requires an explicit starting index.");
       return {
         engine: "ECMAScript RegExp",
         supportedFlags: REGEX_FLAGS,
         pattern,
-        valid: true,
+        valid: !catastrophic,
+        error: catastrophic ? "Pattern rejected because its quantified nesting can cause catastrophic backtracking." : undefined,
         tokens: scanRegex(pattern),
         captureCount: (pattern.match(/\((?!\?)/g) ?? []).length,
         namedCaptures,
         warnings,
+        catastrophic,
+        unsupportedConstructs: unsupported,
         capabilities: {
           literals: true,
           escapes: true,
@@ -228,6 +261,8 @@ export class RegexWorkbench {
         captureCount: 0,
         namedCaptures: [],
         warnings: [],
+        catastrophic: false,
+        unsupportedConstructs: unsupportedConstructs(pattern),
         capabilities: {},
       };
     }
@@ -235,6 +270,11 @@ export class RegexWorkbench {
 
   evaluate(input: string): RegexEvaluation {
     const analysis = this.analysis();
+    if (input.length > REGEX_LIMITS.maxSampleLength) {
+      const bounded = { ...analysis, valid: false, error: `Sample exceeds ${REGEX_LIMITS.maxSampleLength} characters.` };
+      this.state.lastError = bounded.error;
+      return { state: copySearch(this.state), matches: [], durationMs: 0, analysis: bounded };
+    }
     if (!analysis.valid) {
       this.state.lastError = analysis.error;
       return { state: copySearch(this.state), matches: [], durationMs: 0, analysis };
@@ -244,7 +284,7 @@ export class RegexWorkbench {
     const matches: SearchMatch[] = [];
     let match: RegExpExecArray | null;
     let iterations = 0;
-    while ((match = regex.exec(input)) && iterations++ < 10000) {
+    while ((match = regex.exec(input)) && iterations++ < REGEX_LIMITS.maxMatches) {
       matches.push({ index: match.index, text: match[0], groups: [...match].slice(1), namedGroups: { ...(match.groups ?? {}) } });
       if (match[0] === "") regex.lastIndex += 1;
     }
@@ -253,7 +293,8 @@ export class RegexWorkbench {
 
   replacementPreview(input: string, replacement: string): string {
     const analysis = this.analysis();
-    if (!analysis.valid) return input;
+    if (input.length > REGEX_LIMITS.maxSampleLength) throw new Error(`Sample exceeds ${REGEX_LIMITS.maxSampleLength} characters.`);
+    if (!analysis.valid) throw new Error(analysis.error ?? "Pattern is not safe to evaluate.");
     return input.replace(compilePattern(analysis.pattern, this.state.flags), replacement);
   }
 }
@@ -340,6 +381,15 @@ export class TabStripEngine {
         master: initial?.searches?.master ?? { ...defaults.master.state },
       },
     };
+    for (const scope of ["strip", "group", "groups", "master"] as const) this.hydrateWorkbench(this.workbenches[scope], this.state.searches[scope]);
+  }
+
+  private hydrateWorkbench(workbench: RegexWorkbench, state: SearchState): void {
+    workbench.state.query = state.query;
+    workbench.state.pattern = state.pattern;
+    workbench.state.flags = safeFlags(state.flags);
+    workbench.state.mode = state.mode;
+    workbench.state.lastError = state.lastError;
   }
 
   setDockEdge(edge: DockEdge): this { this.state.edge = edge; return this; }
@@ -352,7 +402,7 @@ export class TabStripEngine {
   }
   removeTab(tabId: string): boolean {
     const tab = this.findTab(tabId);
-    if (!tab || tab.dirty) return false;
+    if (!tab || tab.dirty || tab.locked) return false;
     this.state.tabs = this.state.tabs.filter((item) => item.id !== tabId);
     for (const group of this.state.groups) group.tabIds = group.tabIds.filter((id) => id !== tabId);
     if (this.state.activeTabId === tabId) this.state.activeTabId = this.state.tabs[0]?.id;
@@ -653,7 +703,7 @@ export class DestructiveConfirmation {
   verifyKey(keyId: string, valid: boolean): this { if (!this.current || this.current.cancelled) return this; if (keyId === this.current.firstKeyId) this.current.firstVerified = valid; if (keyId === this.current.secondKeyId) this.current.secondVerified = valid; return this; }
   setSlider(progress: number): this { if (this.current && !this.current.cancelled) this.current.progress = Math.max(0, Math.min(1, progress)); return this; }
   cancel(): this { if (this.current) this.current.cancelled = true; return this; }
-  canConfirm(): boolean { return !!this.current && !this.current.cancelled && this.current.firstVerified && this.current.secondVerified && this.current.progress >= 1; }
+  canConfirm(): boolean { return !!this.current && !this.current.cancelled && !this.current.completed && this.current.firstVerified && this.current.secondVerified && this.current.progress >= 1; }
   confirm(action: () => void): boolean { if (!this.canConfirm()) return false; action(); this.current!.completed = true; return true; }
   state(): DestructiveAuthorization | undefined { return this.current; }
 }
