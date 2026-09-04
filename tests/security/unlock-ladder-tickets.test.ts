@@ -29,6 +29,21 @@ describe('unlock ladder', () => {
     expect(ladder.issue('user', 'dish')).toBeNull()
   })
 
+  it('binds a clock nonce to its subject and enforces its retry time', () => {
+    let now = 1_000
+    const ladder = new UnlockLadderService(() => now)
+    const issue = ladder.issue('owner', 'clock', { waitMs: 500 })!
+    expect(ladder.answer('other', { nonce: issue.nonce, answer: null }).reason).toBe('invalid')
+    expect(ladder.answer('owner', { nonce: issue.nonce, answer: null }).reason).toBe('too-early')
+    now += 500
+    expect(ladder.answer('owner', { nonce: issue.nonce, answer: 'pretend-game' }).reason).toBe('replayed')
+    const afterWait = ladder.issue('owner', 'clock', { waitMs: 0 })!
+    expect(ladder.answer('other', { nonce: afterWait.nonce, answer: null }).reason).toBe('invalid')
+    expect(ladder.answer('owner', { nonce: afterWait.nonce, answer: null }).accepted).toBe(true)
+    const alternate = ladder.issue('owner', 'clock', { waitMs: 0 })!
+    expect(ladder.answer('owner', { nonce: alternate.nonce, answer: 'pretend-game' }).reason).toBe('invalid')
+  })
+
   it('escalates after five wrong dishes without spending the skip budget', () => {
     const ladder = new UnlockLadderService(() => 1_000)
     for (let index = 0; index < 5; index += 1) {

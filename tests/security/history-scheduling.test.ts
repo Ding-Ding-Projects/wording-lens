@@ -25,8 +25,9 @@ describe('scheduled settings', () => {
     const schedule = validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [rule] })
     const resolved = resolveScheduledValues({ theme: 'light' }, schedule, new Date('2026-09-04T22:59:00-04:00'))
     expect(resolved.values.theme).toBe('dark')
-    const overnight = { ...rule, id: 'overnight', startTime: '23:00', endTime: '02:00' }
+    const overnight = { ...rule, id: 'overnight', startTime: '23:00', endTime: '02:00', weekdays: [5] }
     expect(matchesScheduleRule(overnight, new Date('2026-09-05T01:00:00-04:00'), 'America/Toronto')).toBe(true)
+    expect(matchesScheduleRule({ ...overnight, weekdays: [6] }, new Date('2026-09-05T01:00:00-04:00'), 'America/Toronto')).toBe(false)
     expect(matchesScheduleRule({ ...rule, startTime: '10:00', endTime: '10:00' }, new Date('2026-09-04T10:00:00-04:00'), 'America/Toronto')).toBe(false)
   })
 
@@ -36,5 +37,7 @@ describe('scheduled settings', () => {
     expect(validateHomeAssistantState({ state: 'off' })).toBe(false)
     expect(() => validateExternalValues({ version: 1, values: { unknown: true } })).toThrow()
     expect(() => validateHomeAssistantState({ state: 'unknown' })).toThrow()
+    expect(() => validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [{ ...rule, source: { kind: 'api', url: 'ftp://127.0.0.1:8123/config' } }] })).toThrow()
+    expect(validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [{ ...rule, source: { kind: 'home-assistant', baseUrl: 'http://127.0.0.1:8123', entityId: 'input_boolean.focus' } }] }).rules[0].source).toEqual({ kind: 'home-assistant', baseUrl: 'http://127.0.0.1:8123', entityId: 'input_boolean.focus' })
   })
 })

@@ -18,8 +18,10 @@ counts, IANA timezones, ISO dates, HH:mm times, weekday lists, safe HTTPS API
 sources, and Home Assistant boolean entity identifiers. Matching is evaluated
 in the selected local timezone. Date ranges are inclusive, ordinary windows use
 an inclusive start and exclusive end, cross-midnight windows wrap to the next
-local day, and equal start and end times intentionally match nothing. `every-day`
-means all local weekdays without duplicating rules.
+local day, and equal start and end times intentionally match nothing. For a
+cross-midnight rule, the early segment belongs to the starting local weekday
+and starting date, not the following calendar weekday. `every-day` means all
+local weekdays without duplicating rules.
 
 Matching rules apply in descending priority, then by the most recently updated
 rule, then by stable identifier. Base settings are copied first and temporary

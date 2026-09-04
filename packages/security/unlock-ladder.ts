@@ -38,7 +38,7 @@ type InternalChallenge =
   | MoleChallenge
   | ClockChallenge
 
-interface StoredChallenge { nonce: string; rung: LadderRung; challenge: InternalChallenge; issuedAtMs: number; expiresAtMs: number; used: boolean }
+interface StoredChallenge { nonce: string; subjectId: string; rung: LadderRung; challenge: InternalChallenge; issuedAtMs: number; expiresAtMs: number; used: boolean }
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -52,6 +52,7 @@ export class UnlockLadderService {
   }
 
   issue(subjectId: string, rung: LadderRung, options: { schoolMode?: boolean; waitMs?: number } = {}): LadderIssue | null {
+    if (!subjectId.trim()) throw new Error('Ladder subject identity is required')
     const now = this.now()
     const attempts = this.attemptsBySubject.get(subjectId) ?? []
     const recent = attempts.filter((value) => value > now - HOUR_MS)
@@ -59,7 +60,7 @@ export class UnlockLadderService {
     if (recent.length >= this.maxSkipsPerHour) return null
     const actualRung = options.schoolMode && rung === 'dish' ? 'sums' : rung
     const challenge = this.createChallenge(actualRung, now, options.waitMs ?? 60_000)
-    const issued: StoredChallenge = { nonce: randomUUID(), rung: actualRung, challenge, issuedAtMs: now, expiresAtMs: now + 5 * 60_000, used: false }
+    const issued: StoredChallenge = { nonce: randomUUID(), subjectId, rung: actualRung, challenge, issuedAtMs: now, expiresAtMs: now + 5 * 60_000, used: false }
     this.challenges.set(issued.nonce, issued)
     return this.publicIssue(issued)
   }
@@ -68,10 +69,13 @@ export class UnlockLadderService {
     const current = this.now()
     const challenge = this.challenges.get(answer.nonce)
     if (!challenge) return this.result('invalid')
+    if (challenge.subjectId !== subjectId) return this.result('invalid')
     if (challenge.used) return this.result('replayed')
     challenge.used = true
     if (current > challenge.expiresAtMs) return this.result('expired')
     if (challenge.challenge.kind === 'moles' && current < challenge.issuedAtMs + challenge.challenge.durationMs) return this.result('too-early')
+    if (challenge.challenge.kind === 'clock' && current < challenge.challenge.retryAtMs) return this.result('too-early')
+    if (challenge.challenge.kind === 'clock' && answer.answer !== null) return this.result('invalid')
     const correct = this.grade(challenge.challenge, answer.answer, current)
     if (correct) {
       const attempts = this.attemptsBySubject.get(subjectId) ?? []

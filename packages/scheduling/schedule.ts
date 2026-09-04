@@ -82,8 +82,9 @@ function validateSource(source: ScheduleSource): void {
     let url: URL
     try { url = new URL(source.kind === 'api' ? source.url : source.baseUrl) } catch { throw new Error('Schedule source URL is invalid') }
     const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-    if (url.username || url.password || (url.protocol !== 'https:' && !loopback)) throw new Error('Schedule source must use HTTPS without embedded credentials')
-    if (url.port && !['443', '80'].includes(url.port)) throw new Error('Schedule source uses an unsafe port')
+    const allowedProtocol = url.protocol === 'https:' || (url.protocol === 'http:' && loopback)
+    if (url.username || url.password || !allowedProtocol) throw new Error('Schedule source must use HTTPS, or loopback HTTP without embedded credentials')
+    if (url.port && (!Number.isInteger(Number(url.port)) || Number(url.port) < 1 || Number(url.port) > 65535)) throw new Error('Schedule source uses an unsafe port')
     if (source.kind === 'home-assistant' && !/^[a-z0-9_]+\.[a-z0-9_]+$/.test(source.entityId)) throw new Error('Home Assistant entity identifier is invalid')
   }
 }
@@ -126,13 +127,22 @@ export function validateSchedule(input: unknown): ScheduleSchema {
 export function matchesScheduleRule(rule: ScheduleRule, instant: Date, timezone: string): boolean {
   if (!rule.enabled) return false
   const current = partsAt(instant, timezone)
-  if (rule.startDate && current.date < rule.startDate) return false
-  if (rule.endDate && current.date > rule.endDate) return false
-  if (rule.weekdays !== 'every-day' && !rule.weekdays.includes(current.weekday)) return false
   const start = parseTime(rule.startTime)
   const end = parseTime(rule.endTime)
   if (start === end) return false
+  const earlyCrossMidnightSegment = start > end && current.minutes < end
+  const scheduleDate = earlyCrossMidnightSegment ? shiftIsoDate(current.date, -1) : current.date
+  const scheduleWeekday = earlyCrossMidnightSegment ? (current.weekday + 6) % 7 : current.weekday
+  if (rule.startDate && scheduleDate < rule.startDate) return false
+  if (rule.endDate && scheduleDate > rule.endDate) return false
+  if (rule.weekdays !== 'every-day' && !rule.weekdays.includes(scheduleWeekday)) return false
   return start < end ? current.minutes >= start && current.minutes < end : current.minutes >= start || current.minutes < end
+}
+
+function shiftIsoDate(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
 }
 
 export function resolveScheduledValues(base: ScheduledValues, schedule: ScheduleSchema, instant: Date): { values: ScheduledValues; matchedRuleIds: string[] } {
