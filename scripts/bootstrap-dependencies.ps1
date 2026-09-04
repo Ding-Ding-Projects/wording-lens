@@ -14,6 +14,15 @@ function Write-Phase([string]$Message) {
   if (-not $Silent) { Write-Host "[bootstrap] $Message" }
 }
 
+function Get-Sha256([Parameter(Mandatory=$true)][string]$LiteralPath) {
+  $stream = [IO.File]::Open($LiteralPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  try {
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $sha256.Dispose() }
+  } finally { $stream.Dispose() }
+}
+
 function Get-LocalToolRoot {
   $base = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $env:USERPROFILE 'AppData\Local' }
   $path = Join-Path $base 'WordingLens\toolchain'
@@ -40,7 +49,7 @@ if (-not (Test-Path -LiteralPath $nodeExe) -or -not (Test-Path -LiteralPath $npm
   $stage = Join-Path ([IO.Path]::GetTempPath()) ("wording-lens-node-{0}" -f [guid]::NewGuid().ToString('N'))
   try {
     Invoke-WebRequest -UseBasicParsing -Uri $nodeSpec.source -OutFile $download
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $download).Hash.ToLowerInvariant()
+    $actual = Get-Sha256 -LiteralPath $download
     if ($actual -ne $nodeSpec.sha256.ToLowerInvariant()) {
       throw "SHA-256 mismatch for $($nodeSpec.source): expected $($nodeSpec.sha256), got $actual."
     }

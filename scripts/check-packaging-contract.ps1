@@ -29,6 +29,8 @@ foreach ($needle in @('dist-electron\apps\desktop\electron\main.js', 'dist\rende
 foreach ($needle in @('sourceExtensions', 'textExtensions', 'binaryExtensions', 'lockFileNames', 'generatedPrefixes', 'vendoredPrefixes', 'unclassifiedText')) { if ($counter -notmatch [regex]::Escape($needle)) { throw "Line-counter inventory is missing: $needle" } }
 foreach ($needle in @('catalog/index.json', 'catalog-v1', 'browser_download_url', 'gh api --paginate --slurp')) { if ($codename -notmatch [regex]::Escape($needle)) { throw "Code-name resolver is missing: $needle" } }
 if ($builder -match 'raw/main|remoteReleases:|setupIcon:') { throw 'Mutable or unsupported packaging configuration remains.' }
+foreach ($needle in @('author: Ding-Ding Projects', 'signAndEditExecutable: false', 'signExecutable: false', 'forceCodeSigning: false')) { if ($builder -notmatch [regex]::Escape($needle)) { throw "Unsigned Squirrel configuration is missing: $needle" } }
+foreach ($needle in @('SITE_BASE_PATH', 'publishedRoute', 'publishedIndex', 'dist/client')) { if ($pages -notmatch [regex]::Escape($needle)) { throw "Pages export contract is missing: $needle" } }
 foreach ($needle in @('nodeSpec.version', 'builderSpec.version', 'nodeVersionMismatch', 'builderVersion', 'electronInstall', 'electronExe')) { if ($bootstrap -notmatch [regex]::Escape($needle)) { throw "Bootstrap contract is missing: $needle" } }
 foreach ($needle in @('dist-electron\apps\desktop\electron\main.js', 'dist\renderer\index.html', 'source checkout is dirty')) { if ($build -notmatch [regex]::Escape($needle)) { throw "Build contract is missing: $needle" } }
 if ($counter -match 'dist-electron/main\.js|dist/index\.html|--no-save') { throw 'Obsolete packaging contract text remains.' }

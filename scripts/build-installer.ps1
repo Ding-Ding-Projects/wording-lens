@@ -4,6 +4,15 @@ param([switch]$Silent)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+function Get-FileDigest([Parameter(Mandatory=$true)][string]$LiteralPath, [ValidateSet('SHA1', 'SHA256')][string]$Algorithm = 'SHA256') {
+  $stream = [IO.File]::Open($LiteralPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  try {
+    $algorithmInstance = if ($Algorithm -eq 'SHA1') { [Security.Cryptography.SHA1]::Create() } else { [Security.Cryptography.SHA256]::Create() }
+    try { return ([BitConverter]::ToString($algorithmInstance.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $algorithmInstance.Dispose() }
+  } finally { $stream.Dispose() }
+}
 $sourceStatus = @(git -C $root status --porcelain)
 if ($sourceStatus.Count -gt 0) { throw "The source checkout is dirty; commit source changes before bootstrapping. Files: $($sourceStatus -join ', ')" }
 $bootstrap = Join-Path $root 'scripts\bootstrap-dependencies.ps1'
@@ -52,11 +61,11 @@ $receipt = [ordered]@{
   receiptType = 'squirrel-windows-build'
   sourceCommit = (& git -C $root rev-parse HEAD).Trim()
   sourceDirty = [bool](& git -C $root status --porcelain)
-  installer = [ordered]@{ path = $setup.Substring($root.Length + 1); sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $setup).Hash.ToLowerInvariant(); signature = $signature.Status.ToString() }
-  releaseIndex = [ordered]@{ path = $releases.Substring($root.Length + 1); sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $releases).Hash.ToLowerInvariant() }
-  packages = @($nupkg | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($root.Length + 1); sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant() } })
+  installer = [ordered]@{ path = $setup.Substring($root.Length + 1); sha256 = (Get-FileDigest -LiteralPath $setup); signature = $signature.Status.ToString() }
+  releaseIndex = [ordered]@{ path = $releases.Substring($root.Length + 1); sha256 = (Get-FileDigest -LiteralPath $releases) }
+  packages = @($nupkg | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($root.Length + 1); sha256 = (Get-FileDigest -LiteralPath $_.FullName) } })
 }
-$receipt.outputs = @(@($setup, $releases) + $nupkg | ForEach-Object { $item = Get-Item -LiteralPath $_; [ordered]@{ path = $item.FullName.Substring($root.Length + 1); bytes = $item.Length; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $item.FullName).Hash.ToLowerInvariant() } })
+$receipt.outputs = @(@($setup, $releases) + $nupkg | ForEach-Object { $item = Get-Item -LiteralPath $_; [ordered]@{ path = $item.FullName.Substring($root.Length + 1); bytes = $item.Length; sha256 = (Get-FileDigest -LiteralPath $item.FullName) } })
 $receiptPath = Join-Path $out 'source-receipt.json'
 $receipt | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receiptPath -Encoding UTF8
 if (-not $Silent) { Write-Host "[installer] Verified unsigned installer: $($setup.Substring($root.Length + 1))" }

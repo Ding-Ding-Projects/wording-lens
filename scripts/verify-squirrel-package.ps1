@@ -7,6 +7,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+function Get-FileDigest([Parameter(Mandatory=$true)][string]$LiteralPath, [ValidateSet('SHA1', 'SHA256')][string]$Algorithm = 'SHA256') {
+  $stream = [IO.File]::Open($LiteralPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  try {
+    $algorithmInstance = if ($Algorithm -eq 'SHA1') { [Security.Cryptography.SHA1]::Create() } else { [Security.Cryptography.SHA256]::Create() }
+    try { return ([BitConverter]::ToString($algorithmInstance.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $algorithmInstance.Dispose() }
+  } finally { $stream.Dispose() }
+}
 $out = (Resolve-Path $OutputPath).Path
 $setup = Get-ChildItem -LiteralPath $out -Filter '*-Setup.exe' -File | Select-Object -First 1
 $index = Join-Path $out 'RELEASES'
@@ -38,14 +47,14 @@ if (Test-Path -LiteralPath (Join-Path $out 'source-receipt.json')) {
     if (-not (Test-Path -LiteralPath $outputPath)) { throw "Receipt output is missing: $($output.path)" }
     $outputItem = Get-Item -LiteralPath $outputPath
     if ([int64]$outputItem.Length -ne [int64]$output.bytes) { throw "Receipt byte count differs: $($output.path)" }
-    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $outputPath).Hash.ToLowerInvariant() -ne $output.sha256) { throw "Receipt SHA-256 differs: $($output.path)" }
+    if ((Get-FileDigest -LiteralPath $outputPath) -ne $output.sha256) { throw "Receipt SHA-256 differs: $($output.path)" }
   }
 }
 [ordered]@{
   schemaVersion = 2
   receiptType = 'squirrel-windows-verification'
   sourceCommit = $commit
-  setup = [ordered]@{ name = $setup.Name; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $setup.FullName).Hash.ToLowerInvariant(); signature = $sig.Status.ToString(); bytes = $setup.Length }
-  releases = [ordered]@{ name = 'RELEASES'; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash.ToLowerInvariant(); bytes = (Get-Item -LiteralPath $index).Length }
-  packages = @($packages | ForEach-Object { [ordered]@{ name = $_.Name; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant(); bytes = $_.Length } })
+  setup = [ordered]@{ name = $setup.Name; sha256 = (Get-FileDigest -LiteralPath $setup.FullName); signature = $sig.Status.ToString(); bytes = $setup.Length }
+  releases = [ordered]@{ name = 'RELEASES'; sha256 = (Get-FileDigest -LiteralPath $index); bytes = (Get-Item -LiteralPath $index).Length }
+  packages = @($packages | ForEach-Object { [ordered]@{ name = $_.Name; sha256 = (Get-FileDigest -LiteralPath $_.FullName); bytes = $_.Length } })
 } | ConvertTo-Json -Depth 6

@@ -36,7 +36,9 @@ jobs:
             & $npm.Source run build
             if ($LASTEXITCODE -ne 0) { throw "apps/site build exited with $LASTEXITCODE." }
           } finally { Pop-Location }
-          if (-not (Test-Path apps/site/dist/client/index.html)) { throw 'The site build did not produce apps/site/dist/client/index.html.' }
+          $publishedRoute = if ([string]::IsNullOrWhiteSpace($env:SITE_BASE_PATH)) { 'index.html' } else { (($env:SITE_BASE_PATH.Trim('/') -replace '/', [IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar + 'index.html') }
+          $publishedIndex = Join-Path 'apps/site/dist/client' $publishedRoute
+          if (-not (Test-Path -LiteralPath $publishedIndex)) { throw "The site build did not produce the base-path published document: $publishedIndex." }
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
