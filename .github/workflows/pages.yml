@@ -1,0 +1,58 @@
+name: Build and deploy documentation site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2025
+    env:
+      SITE_BASE_PATH: /wording-lens
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Bootstrap declared dependencies
+        run: .\download-dependencies.bat /s
+
+      - name: Build the site
+        shell: pwsh
+        run: |
+          $npm = Get-Command npm.cmd -ErrorAction Stop
+          if (Test-Path apps/site/package.json) {
+            Push-Location apps/site
+            try { & $npm.Source run build } finally { Pop-Location }
+          } elseif (Test-Path package.json) {
+            & $npm.Source run build:site --if-present
+          } else { throw 'No site package manifest was found.' }
+          if (-not (Test-Path apps/site/dist/client/index.html)) { throw 'The site build did not produce apps/site/dist/client/index.html.' }
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages lap saps
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/site/dist/client
+
+  deploy:
+    needs: build
+    runs-on: windows-2025
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

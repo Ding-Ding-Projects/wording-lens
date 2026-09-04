@@ -14,6 +14,8 @@ if ($LASTEXITCODE -ne 0) { throw "Application build exited with $LASTEXITCODE." 
 
 $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $npm) { throw 'npm.cmd was not found after dependency bootstrap.' }
+$builder = Get-Command electron-builder.cmd -ErrorAction SilentlyContinue
+if (-not $builder) { throw 'The pinned electron-builder command was not found after dependency bootstrap.' }
 $config = Join-Path $root 'packaging\electron-builder.yml'
 $icon = Join-Path $root 'packaging\wording-lens.ico'
 if (-not (Test-Path -LiteralPath $icon)) { throw "The packaged application icon is missing: $icon" }
@@ -23,7 +25,7 @@ if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Recurse -Force
 Push-Location $root
 try {
   if (-not $Silent) { Write-Host '[installer] Creating the unsigned Squirrel.Windows installer.' }
-  & $npm.Source exec --no -- electron-builder --win squirrel --config $config
+  & $builder.Source --win squirrel --config $config
   if ($LASTEXITCODE -ne 0) { throw "electron-builder exited with $LASTEXITCODE." }
 } finally { Pop-Location }
 

@@ -11,6 +11,8 @@ permissions:
 jobs:
   package:
     runs-on: windows-2025
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -73,23 +75,56 @@ jobs:
           git tag $tag $env:GITHUB_SHA
           git push origin $tag
 
-      - name: Write release notes
+      - name: Create one temporary draft release
+        if: ${{ success() }}
+        id: draft
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Wording Lens $env:RELEASE_TAG" --notes 'Preparing verified release assets.'
+          $records = gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json databaseId,tagName,draft | ConvertFrom-Json
+          $record = @($records | Where-Object { $_.tagName -eq $env:RELEASE_TAG }) | Select-Object -First 1
+          if (-not $record) { throw 'The temporary draft release was not found after creation.' }
+          "release_id=$($record.databaseId)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload verified release assets to the draft
         if: ${{ success() }}
         shell: pwsh
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          STARTED_AT: ${{ steps.timing.outputs.started }}
-        run: |
-          $completed = (Get-Date).ToUniversalTime().ToString('o')
-          "completed=$completed" >> $env:GITHUB_OUTPUT
-          pwsh -NoProfile -File scripts/write-release-notes.ps1 -OutputPath packaging/release-staging/RELEASE-NOTES.md -Tag $env:RELEASE_TAG -StartedAt $env:STARTED_AT -CompletedAt $completed -LineCountPath packaging/release-staging/line-count.json -ReceiptPath dist/squirrel-windows/source-receipt.json
-
-      - name: Publish the unique release
-        if: ${{ success() }}
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           $assets = @(Get-ChildItem packaging/release-staging -File | Where-Object { $_.Name -match '(-Setup\.exe$|^RELEASES$|\.nupkg$|\.nupkg\.sha512$)' } | ForEach-Object FullName)
           if ($assets.Count -lt 3) { throw 'Release asset collection did not find Setup.exe, RELEASES, and a full .nupkg.' }
-          gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --title "Wording Lens $env:RELEASE_TAG" --notes-file packaging/release-staging/RELEASE-NOTES.md $assets
+          gh release upload $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY $assets
+
+      - name: Capture completion time after asset publication
+        if: ${{ success() }}
+        id: completion
+        shell: pwsh
+        run: |
+          $completed = (Get-Date).ToUniversalTime().ToString('o')
+          "completed=$completed" >> $env:GITHUB_OUTPUT
+
+      - name: Write and update draft release notes by release ID
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+          STARTED_AT: ${{ steps.timing.outputs.started }}
+          COMPLETED_AT: ${{ steps.completion.outputs.completed }}
+        run: |
+          pwsh -NoProfile -File scripts/write-release-notes.ps1 -OutputPath packaging/release-staging/RELEASE-NOTES.md -Tag $env:RELEASE_TAG -StartedAt $env:STARTED_AT -CompletedAt $env:COMPLETED_AT -LineCountPath packaging/release-staging/line-count.json -ReceiptPath dist/squirrel-windows/source-receipt.json -CodeName 'Classic Har Gow · 蝦餃' -CodeNameUrl 'https://github.com/Ding-Ding-Projects/dim-sum-photos/releases/latest'
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "body=@packaging/release-staging/RELEASE-NOTES.md"
+
+      - name: Publish the draft exactly once and verify it is non-draft
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "draft=false" | Out-Null
+          $record = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" | ConvertFrom-Json
+          if ($record.draft -ne $false -or $record.tag_name -ne $env:RELEASE_TAG) { throw 'Published release verification failed.' }

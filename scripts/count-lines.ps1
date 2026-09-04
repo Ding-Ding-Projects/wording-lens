@@ -7,11 +7,11 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $paths = @(git -C $root ls-files)
 $excluded = @('node_modules/', 'dist/', 'dist-electron/', 'coverage/', 'packaging/release-staging/')
 $rows = [ordered]@{
-  source = [ordered]@{ files = 0; total = 0; nonBlank = 0 }
-  tests = [ordered]@{ files = 0; total = 0; nonBlank = 0 }
-  stylesMarkup = [ordered]@{ files = 0; total = 0; nonBlank = 0 }
-  documentation = [ordered]@{ files = 0; total = 0; nonBlank = 0 }
-  other = [ordered]@{ files = 0; total = 0; nonBlank = 0 }
+  source = [ordered]@{ files = 0; total = 0; nonBlank = 0; agentLines = 0; otherLines = 0 }
+  tests = [ordered]@{ files = 0; total = 0; nonBlank = 0; agentLines = 0; otherLines = 0 }
+  stylesMarkup = [ordered]@{ files = 0; total = 0; nonBlank = 0; agentLines = 0; otherLines = 0 }
+  documentation = [ordered]@{ files = 0; total = 0; nonBlank = 0; agentLines = 0; otherLines = 0 }
+  other = [ordered]@{ files = 0; total = 0; nonBlank = 0; agentLines = 0; otherLines = 0 }
 }
 foreach ($relative in $paths) {
   if ([string]::IsNullOrWhiteSpace($relative) -or @($excluded | Where-Object { $relative.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count) { continue }
@@ -24,6 +24,11 @@ foreach ($relative in $paths) {
   $rows[$key].files++
   $rows[$key].total += $lines.Count
   $rows[$key].nonBlank += @($lines | Where-Object { $_.Trim().Length -gt 0 }).Count
+  $hunkAuthor = ''
+  foreach ($blameLine in @(git -C $root blame --line-porcelain -- $relative)) {
+    if ($blameLine.StartsWith('author ')) { $hunkAuthor = $blameLine.Substring(7) }
+    elseif ($blameLine.StartsWith("`t")) { if ($hunkAuthor -eq 'Claude Fable 5') { $rows[$key].agentLines++ } else { $rows[$key].otherLines++ } }
+  }
 }
 $categoryNames = @('source', 'tests', 'stylesMarkup', 'documentation', 'other')
 $totalFiles = 0
@@ -34,7 +39,10 @@ foreach ($categoryName in $categoryNames) {
   $totalLines += [int]$rows[$categoryName].total
   $totalNonBlank += [int]$rows[$categoryName].nonBlank
 }
-$rows.total = [ordered]@{ files = $totalFiles; total = $totalLines; nonBlank = $totalNonBlank }
+$totalAgentLines = 0
+$totalOtherLines = 0
+foreach ($categoryName in $categoryNames) { $totalAgentLines += [int]$rows[$categoryName].agentLines; $totalOtherLines += [int]$rows[$categoryName].otherLines }
+$rows.total = [ordered]@{ files = $totalFiles; total = $totalLines; nonBlank = $totalNonBlank; agentLines = $totalAgentLines; otherLines = $totalOtherLines }
 $result = [ordered]@{ schemaVersion = 1; sourceCommit = (& git -C $root rev-parse HEAD).Trim(); generatedAt = (Get-Date).ToUniversalTime().ToString('o'); categories = $rows; exclusions = $excluded }
 $json = $result | ConvertTo-Json -Depth 8
 if ($OutputPath) { $json | Set-Content -LiteralPath $OutputPath -Encoding UTF8 }
