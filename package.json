@@ -1,0 +1,37 @@
+{
+  "name": "wording-lens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-first operations cockpit for Windows.",
+  "main": "dist-electron/apps/desktop/electron/main.js",
+  "buildMetadata": {
+    "source": "generated-from-commit-metadata"
+  },
+  "scripts": {
+    "generate:build-metadata": "node apps/desktop/electron/generate-build-metadata.mjs",
+    "build": "npm run generate:build-metadata && tsc -p tsconfig.main.json && vite build",
+    "test": "npm run generate:build-metadata && vitest run",
+    "test:watch": "vitest",
+    "start": "electron .",
+    "dev": "vite"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.2.0",
+    "jsdom": "30.0.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
+  }
+}
