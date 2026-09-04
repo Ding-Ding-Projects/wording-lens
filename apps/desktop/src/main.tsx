@@ -1,49 +1,2488 @@
-import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
+import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BUILD_PROVENANCE, formatProvenanceDate, isValidProvenance } from "@core/provenance";
+import {
+  BUILD_PROVENANCE,
+  formatProvenanceDate,
+  isValidProvenance,
+} from "@core/provenance";
 import type { AppProvenance } from "@core/types";
-import { Button, Dialog, EmptyState, FormField, RegexBuilder, SearchField, StatCard, StatusPill, SurfaceCard, TabRail, WindowControls, screenOrder, type Copy, type LanguageMode, type ScreenId, useReturnFocus } from "./components";
+import type {
+  OperationPreview,
+  OperationRequest,
+  OperationState,
+} from "../../../packages/operations/types";
+import type {
+  AppSettings,
+  EditorCandidate,
+  NotificationRecord,
+  ProjectInspection,
+  UpdaterState,
+  VocabularyStatus,
+} from "../../../packages/desktop-services/src/index";
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  FormField,
+  RegexBuilder,
+  SearchField,
+  StatCard,
+  StatusPill,
+  SurfaceCard,
+  TabRail,
+  WindowControls,
+  screenOrder,
+  type Copy,
+  type LanguageMode,
+  type ScreenId,
+} from "./components";
 import "./styles.css";
 
-const labels: Record<ScreenId, Copy> = { overview: { en: "Overview", zh: "總覽" }, projects: { en: "Projects", zh: "專案" }, operations: { en: "Operations", zh: "操作" }, queue: { en: "Queue", zh: "佇列" }, files: { en: "Files and Converter", zh: "檔案與轉換器" }, models: { en: "Local Models", zh: "本機模型" }, authenticator: { en: "Authenticator", zh: "驗證器" }, history: { en: "History", zh: "歷史記錄" }, documentation: { en: "Documentation", zh: "文件" }, changelog: { en: "Changelog", zh: "更新日誌" }, notifications: { en: "Notifications", zh: "通知" }, status: { en: "Status", zh: "狀態" }, settings: { en: "Settings", zh: "設定" } };
-const descriptions: Record<ScreenId, Copy> = { overview: { en: "A calm local view of work, signals, and what to do next.", zh: "平靜地查看本機工作、訊號與下一步。" }, projects: { en: "Local folders and their readiness at a glance.", zh: "一眼查看本機資料夾與準備狀態。" }, operations: { en: "Preview safe, typed actions before they run.", zh: "執行前先預覽安全、具型別的操作。" }, queue: { en: "Durable progress, cancellation, and honest outcomes.", zh: "持久進度、取消控制與誠實結果。" }, files: { en: "Convert local files with bounded, inspectable adapters.", zh: "用有界且可檢查的轉換器處理本機檔案。" }, models: { en: "Local model health and conservative hardware fit.", zh: "本機模型健康度與保守的硬體適配判斷。" }, authenticator: { en: "Keep verification codes local and under your control.", zh: "讓驗證碼留在本機並由你掌控。" }, history: { en: "Review local changes without sending them anywhere.", zh: "檢視本機變更，不會傳送到任何地方。" }, documentation: { en: "Offline guidance for every shipped surface.", zh: "每個已提供介面的離線指南。" }, changelog: { en: "Every released version, with traceable commits.", zh: "每個已發布版本及可追溯的提交。" }, notifications: { en: "Reviewable, non-blocking updates from your workspace.", zh: "可回看、不阻塞工作區的更新。" }, status: { en: "Live readiness and evidence for this local session.", zh: "此本機工作階段的即時準備度與證據。" }, settings: { en: "Tune language, accessibility, appearance, and local privacy.", zh: "調整語言、無障礙、外觀與本機私隱。" } };
+const labels: Record<ScreenId, Copy> = {
+  overview: { en: "Overview", zh: "總覽" },
+  projects: { en: "Projects", zh: "專案" },
+  operations: { en: "Operations", zh: "操作" },
+  queue: { en: "Queue", zh: "佇列" },
+  files: { en: "Files and Converter", zh: "檔案與轉換器" },
+  models: { en: "Local Models", zh: "本機模型" },
+  authenticator: { en: "Authenticator", zh: "驗證器" },
+  history: { en: "History", zh: "歷史記錄" },
+  documentation: { en: "Documentation", zh: "文件" },
+  changelog: { en: "Changelog", zh: "更新日誌" },
+  notifications: { en: "Notifications", zh: "通知" },
+  status: { en: "Status", zh: "狀態" },
+  settings: { en: "Settings", zh: "設定" },
+};
+const descriptions: Record<ScreenId, Copy> = {
+  overview: {
+    en: "A calm local view of work, signals, and what to do next.",
+    zh: "平靜地查看本機工作、訊號與下一步。",
+  },
+  projects: {
+    en: "Local folders and their readiness at a glance.",
+    zh: "一眼查看本機資料夾與準備狀態。",
+  },
+  operations: {
+    en: "Preview safe, typed actions before they run.",
+    zh: "執行前先預覽安全、具型別的操作。",
+  },
+  queue: {
+    en: "Durable progress, cancellation, and honest outcomes.",
+    zh: "持久進度、取消控制與誠實結果。",
+  },
+  files: {
+    en: "Convert local files with bounded, inspectable adapters.",
+    zh: "用有界且可檢查的轉換器處理本機檔案。",
+  },
+  models: {
+    en: "Local model health and conservative hardware fit.",
+    zh: "本機模型健康度與保守的硬體適配判斷。",
+  },
+  authenticator: {
+    en: "Keep verification codes local and under your control.",
+    zh: "讓驗證碼留在本機並由你掌控。",
+  },
+  history: {
+    en: "Review local changes without sending them anywhere.",
+    zh: "檢視本機變更，不會傳送到任何地方。",
+  },
+  documentation: {
+    en: "Offline guidance for every shipped surface.",
+    zh: "每個已提供介面的離線指南。",
+  },
+  changelog: {
+    en: "Every released version, with traceable commits.",
+    zh: "每個已發布版本及可追溯的提交。",
+  },
+  notifications: {
+    en: "Reviewable, non-blocking updates from your workspace.",
+    zh: "可回看、不阻塞工作區的更新。",
+  },
+  status: {
+    en: "Live readiness and evidence for this local session.",
+    zh: "此本機工作階段的即時準備度與證據。",
+  },
+  settings: {
+    en: "Tune language, accessibility, appearance, and local privacy.",
+    zh: "調整語言、無障礙、外觀與本機私隱。",
+  },
+};
+const languageForSettings: Record<AppSettings["languageMode"], LanguageMode> = {
+  english: "en",
+  cantonese: "zh-Hant",
+  bilingual: "bilingual",
+};
+const settingsForLanguage: Record<LanguageMode, AppSettings["languageMode"]> = {
+  en: "english",
+  "zh-Hant": "cantonese",
+  bilingual: "bilingual",
+};
 
-function useStored<T>(key: string, initial: T): [T, (value: T) => void] { const [value, setValue] = useState<T>(() => { try { const raw = window.localStorage.getItem(key); return raw === null ? initial : JSON.parse(raw) as T; } catch { return initial; } }); const update = (next: T) => { setValue(next); try { window.localStorage.setItem(key, JSON.stringify(next)); } catch { /* local storage can be unavailable in a restricted profile */ } }; return [value, update]; }
-function readRoute(): ScreenId { const value = window.location.hash.replace(/^#\/?/, "").split("?")[0] as ScreenId; return screenOrder.includes(value) ? value : "overview"; }
-function localize(value: Copy, mode: LanguageMode): string { return mode === "zh-Hant" ? value.zh : mode === "bilingual" ? `${value.en} · ${value.zh}` : value.en; }
-function filtered<T extends { search: string }>(items: T[], query: string, pattern: string): T[] { if (!query && !pattern) return items; try { const expression = pattern ? new RegExp(pattern, "iu") : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "iu"); return items.filter((item) => expression.test(item.search)); } catch { return []; } }
+function localize(value: Copy, mode: LanguageMode): string {
+  return mode === "zh-Hant"
+    ? value.zh
+    : mode === "bilingual"
+      ? `${value.en} · ${value.zh}`
+      : value.en;
+}
+function readRoute(): ScreenId {
+  const value = window.location.hash
+    .replace(/^#\/?/, "")
+    .split("?")[0] as ScreenId;
+  return screenOrder.includes(value) ? value : "overview";
+}
+function safeSettings(value?: Partial<AppSettings>): AppSettings {
+  return {
+    displayName: "Wording Lens",
+    languageMode: "english",
+    theme: "dark",
+    density: "comfortable",
+    accent: "#00d4ff",
+    funnyEnglish: 5,
+    funnyCantonese: 5,
+    emojiDialogs: true,
+    narrationEnabled: false,
+    narrationLanguage: "english",
+    reducedMotion: false,
+    ...value,
+  };
+}
+function publicError(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
-function SurfaceHeader({ screen, mode, query, setQuery, regex, setRegex, regexPattern, setRegexPattern }: { screen: ScreenId; mode: LanguageMode; query: string; setQuery: (value: string) => void; regex: boolean; setRegex: (value: boolean) => void; regexPattern: string; setRegexPattern: (value: string) => void }): JSX.Element { return <div className="page-header"><div><p className="eyebrow">LOCAL WORKSPACE</p><h1>{localize(labels[screen], mode)}</h1><p className="page-description">{localize(descriptions[screen], mode)}</p></div><div className="page-tools"><SearchField label={`${localize(labels[screen], mode)} search`} query={query} onQuery={setQuery} onOpenRegex={() => setRegex(!regex)} placeholder={`Search ${localize(labels[screen], mode).toLowerCase()}`} focusId={`surface-search-${screen}`} />{regex && <RegexBuilder query={query} onClose={() => setRegex(false)} onApply={(pattern) => setRegexPattern(pattern)} />}{regexPattern && <span className="active-filter">Regex active</span>}</div></div>; }
+function SurfaceHeader({
+  screen,
+  mode,
+  query,
+  setQuery,
+  regex,
+  setRegex,
+  onApplyRegex,
+}: {
+  screen: ScreenId;
+  mode: LanguageMode;
+  query: string;
+  setQuery: (value: string) => void;
+  regex: boolean;
+  setRegex: (value: boolean) => void;
+  onApplyRegex: (pattern: string) => void;
+}): JSX.Element {
+  return (
+    <div className="page-header">
+      <div>
+        <p className="eyebrow">LOCAL WORKSPACE</p>
+        <h1>{localize(labels[screen], mode)}</h1>
+        <p className="page-description">
+          {localize(descriptions[screen], mode)}
+        </p>
+      </div>
+      <div className="page-tools">
+        <SearchField
+          label={`${localize(labels[screen], mode)} search`}
+          query={query}
+          onQuery={setQuery}
+          onOpenRegex={() => setRegex(!regex)}
+          placeholder={`Search ${localize(labels[screen], mode).toLowerCase()}`}
+          focusId={`surface-search-${screen}`}
+        />
+        {regex && (
+          <RegexBuilder
+            query={query}
+            onClose={() => setRegex(false)}
+            onApply={onApplyRegex}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
-function Overview({ navigate, notify, mode }: { navigate: (screen: ScreenId) => void; notify: (message: string) => void; mode: LanguageMode }): JSX.Element { return <><section className="hero-panel"><div><p className="eyebrow">OPERATIONS COCKPIT</p><h2>{mode === "zh-Hant" ? "保持工作向前" : "Keep the work moving"}</h2><p>{mode === "zh-Hant" ? "預覽變更、執行本機操作，讓每個結果清清楚楚。" : "Preview changes, run local operations, and keep every outcome visible."}</p><div className="button-row"><Button variant="primary" onClick={() => navigate("operations")}>＋ New operation</Button><Button onClick={() => navigate("projects")}>Browse projects</Button></div></div><div className="hero-orbit" aria-hidden="true"><span>WL</span><i /><b /></div></section><div className="stats-grid"><StatCard label="ACTIVE WORK" value="0" detail="Nothing is running" tone="ready" /><StatCard label="PROJECTS" value="0" detail="Open a local folder to begin" /><StatCard label="LOCAL MODELS" value="—" detail="Local service not connected" tone="waiting" /><StatCard label="NOTIFICATIONS" value="0" detail="All caught up" tone="ready" /></div><SurfaceCard><div className="section-heading"><div><h2>Recent activity</h2><p>Your local activity will appear here.</p></div><Button variant="quiet" onClick={() => navigate("history")}>View history →</Button></div><EmptyState icon="◌" title="Nothing is running" description="Start an operation when you are ready. Progress will stay visible here." action={<Button onClick={() => { notify("Operation preview opened"); navigate("operations"); }}>Browse activity</Button>} /></SurfaceCard></>; }
+function UpdateBanner({
+  state,
+  refresh,
+  notify,
+}: {
+  state: UpdaterState;
+  refresh: () => void;
+  notify: (message: string) => void;
+}): JSX.Element {
+  const label =
+    state.state === "available"
+      ? `Update ${state.version ?? "available"}`
+      : state.state === "ready"
+        ? `Update ${state.version ?? "ready"} is ready`
+        : state.state === "failed"
+          ? "Update check failed"
+          : "Updates checked locally";
+  return (
+    <div className={`update-banner ${state.state}`}>
+      <div>
+        <strong>{label}</strong>
+        <small>
+          {state.unsigned ? "Unsigned package warning applies." : ""}
+          {state.error ? ` ${state.error}` : ""}
+        </small>
+      </div>
+      <div className="button-row">
+        <Button variant="quiet" onClick={refresh}>
+          Check for updates
+        </Button>
+        {state.state === "ready" && (
+          <Button
+            variant="primary"
+            onClick={() =>
+              notify("Restart to install update is waiting for your choice")
+            }
+          >
+            Restart to install update
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
-function Operations({ navigate, notify }: { navigate: (screen: ScreenId) => void; notify: (message: string) => void }): JSX.Element { const [kind, setKind] = useState("Preview a folder inventory"); const [path, setPath] = useState(""); const [preview, setPreview] = useState(false); return <div className="two-column"><SurfaceCard><div className="section-heading"><div><h2>Typed operation</h2><p>Select an allowlisted operation. The preview is local and reversible.</p></div><StatusPill label="Ready" /></div><FormField label="Action" hint="Values are from the local adapter registry."><select value={kind} onChange={(event) => setKind(event.target.value)}><option>Preview a folder inventory</option><option>Compare two local files</option><option>Refresh local model status</option><option>Open a documentation article</option></select></FormField><FormField label="Folder or file" hint="Use the browse control or enter a path. It is not sent anywhere."><div className="path-field"><input value={path} onChange={(event) => setPath(event.target.value)} placeholder="Choose a local path" /><label className="browse-button"><input type="file" onChange={(event) => setPath(event.target.files?.[0]?.name ?? "")} />Browse</label></div></FormField><div className="button-row"><Button variant="primary" onClick={() => setPreview(true)}>Review preview</Button><Button variant="quiet" onClick={() => { setPath(""); notify("Operation form reset"); }}>Reset</Button></div>{preview && <div className="preview-panel" role="status"><strong>{kind}</strong><p>{path ? `Target: ${path}` : "No target selected. The operation stays in preview until a local target is chosen."}</p><Button onClick={() => { notify("Operation added to local queue"); navigate("queue"); }}>Add to queue</Button></div>}</SurfaceCard><SurfaceCard><h2>Operation safety</h2><div className="check-list"><div><span>✓</span><strong>Typed action</strong><small>Only registered actions can be queued.</small></div><div><span>✓</span><strong>Review before run</strong><small>Affected paths and limits are shown first.</small></div><div><span>✓</span><strong>Local history</strong><small>Settings and outcomes remain reviewable.</small></div></div></SurfaceCard></div>; }
+function Overview({
+  navigate,
+  notify,
+  updater,
+  refreshUpdater,
+}: {
+  navigate: (screen: ScreenId) => void;
+  notify: (message: string) => void;
+  updater: UpdaterState;
+  refreshUpdater: () => void;
+}): JSX.Element {
+  return (
+    <>
+      <section className="hero-panel">
+        <div>
+          <p className="eyebrow">OPERATIONS COCKPIT</p>
+          <h2>Keep the work moving</h2>
+          <p>
+            Preview changes, run local operations, and keep every outcome
+            visible.
+          </p>
+          <div className="button-row">
+            <Button variant="primary" onClick={() => navigate("operations")}>
+              ＋ New operation
+            </Button>
+            <Button onClick={() => navigate("projects")}>
+              Browse projects
+            </Button>
+          </div>
+        </div>
+        <div className="hero-orbit" aria-hidden="true">
+          <span>WL</span>
+          <i />
+          <b />
+        </div>
+      </section>
+      <UpdateBanner state={updater} refresh={refreshUpdater} notify={notify} />
+      <div className="stats-grid">
+        <StatCard
+          label="ACTIVE WORK"
+          value="0"
+          detail="Nothing is running"
+          tone="ready"
+        />
+        <StatCard
+          label="PROJECTS"
+          value="0"
+          detail="Open a local folder to begin"
+        />
+        <StatCard
+          label="LOCAL MODELS"
+          value="—"
+          detail="Local service not connected"
+          tone="waiting"
+        />
+        <StatCard
+          label="NOTIFICATIONS"
+          value="0"
+          detail="All caught up"
+          tone="ready"
+        />
+      </div>
+      <SurfaceCard>
+        <div className="section-heading">
+          <div>
+            <h2>Recent activity</h2>
+            <p>Your local activity will appear here.</p>
+          </div>
+          <Button variant="quiet" onClick={() => navigate("history")}>
+            View history →
+          </Button>
+        </div>
+        <EmptyState
+          icon="◌"
+          title="Nothing is running"
+          description="Start an operation when you are ready. Progress will stay visible here."
+          action={
+            <Button
+              onClick={() => {
+                notify("Operation preview opened");
+                navigate("operations");
+              }}
+            >
+              Browse activity
+            </Button>
+          }
+        />
+      </SurfaceCard>
+    </>
+  );
+}
 
-function Queue({ notify }: { notify: (message: string) => void }): JSX.Element { const [running, setRunning] = useState(false); const [progress, setProgress] = useState(0); useEffect(() => { if (!running) return; const timer = window.setInterval(() => setProgress((value) => { if (value >= 100) { window.clearInterval(timer); setRunning(false); notify("Operation completed locally"); return 100; } return value + 10; }), 250); return () => window.clearInterval(timer); }, [running, notify]); return <div className="two-column"><SurfaceCard><div className="section-heading"><div><h2>{running ? "Operation in progress" : progress === 100 ? "Operation complete" : "Queue is ready"}</h2><p>Progress belongs here, beside the action that started it.</p></div><StatusPill label={running ? "Running" : progress === 100 ? "Complete" : "Idle"} tone={running ? "waiting" : "ready"} /></div><div className="queue-item"><span className="queue-icon">◴</span><div className="queue-main"><strong>Preview local operation</strong><span>{running ? "Reading bounded local input" : progress === 100 ? "Validated result retained locally" : "No operation has started"}</span><div className="progress-track" aria-label={`Operation progress ${progress} percent`}><span style={{ width: `${progress}%` }} /></div></div><strong>{progress}%</strong></div><div className="button-row"><Button variant="primary" disabled={running} onClick={() => { setProgress(0); setRunning(true); }}>Run queued operation</Button><Button variant="danger" disabled={!running} onClick={() => { setRunning(false); notify("Operation cancelled"); }}>Cancel</Button></div></SurfaceCard><SurfaceCard><h2>Queue controls</h2><div className="button-grid"><Button onClick={() => notify("Queue paused locally")}>Pause</Button><Button onClick={() => notify("Queue resumed locally")}>Resume</Button><Button onClick={() => notify("Queue retry requested")}>Retry failed</Button><Button onClick={() => notify("Queue export prepared")}>Export results</Button></div><p className="muted">No network transfer is used by the local queue.</p></SurfaceCard></div>; }
+export function Projects({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [folder, setFolder] = useState("");
+  const [inspection, setInspection] = useState<ProjectInspection | null>(null);
+  const [error, setError] = useState("");
+  const choose = async () => {
+    if (!bridge?.pickFolder) {
+      setError(
+        "Local folder picker is unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    try {
+      const path = await bridge.pickFolder();
+      if (!path) return;
+      setFolder(path);
+      if (bridge.inspectProject)
+        setInspection(await bridge.inspectProject(path));
+    } catch (cause) {
+      setError(publicError(cause, "Project inspection failed"));
+    }
+  };
+  const inspect = async () => {
+    if (!bridge?.inspectProject || !folder.trim()) {
+      setError("Enter or choose a local folder before inspecting it.");
+      return;
+    }
+    try {
+      setInspection(await bridge.inspectProject(folder));
+      setError("");
+    } catch (cause) {
+      setError(publicError(cause, "Project inspection failed"));
+    }
+  };
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>{inspection ? "Project inspected" : "Choose a local project"}</h2>
+          <p>Folder selection and inspection use the typed local bridge.</p>
+        </div>
+        <StatusPill
+          label={inspection?.exists ? "Inspected" : "Ready"}
+          tone={inspection?.exists ? "ready" : "neutral"}
+        />
+      </div>
+      <div className="path-field">
+        <input
+          value={folder}
+          onChange={(event) => setFolder(event.target.value)}
+          placeholder="Choose a project folder"
+          aria-label="Project folder"
+        />
+        <Button onClick={choose}>Browse</Button>
+        <Button onClick={() => void inspect()} disabled={!folder.trim()}>
+          Inspect
+        </Button>
+      </div>
+      {inspection && (
+        <div className="preview-panel" role="status">
+          <strong>{inspection.path}</strong>
+          <p>
+            {inspection.kind} ·{" "}
+            {inspection.hasGitMetadata
+              ? "Version metadata found"
+              : "No version metadata found"}
+          </p>
+        </div>
+      )}
+      {error && (
+        <p className="inline-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="button-row">
+        <p className="muted">
+          Inspection is available through this bridge. It does not expose an
+          open-project action, so this screen does not claim to open one.
+        </p>
+        <Button
+          variant="quiet"
+          onClick={() => {
+            setFolder("");
+            setInspection(null);
+            setError("");
+          }}
+        >
+          Reset
+        </Button>
+      </div>
+    </SurfaceCard>
+  );
+}
 
-function Files({ notify }: { notify: (message: string) => void }): JSX.Element { const [file, setFile] = useState(""); const [category, setCategory] = useState("Documents / PDF"); const categories = ["Documents / PDF", "Images", "Audio", "Video", "Archives", "Structured Data / Spreadsheets", "Code / Text", "Binary Encodings"]; return <SurfaceCard><div className="section-heading"><div><h2>Local file converter</h2><p>Detection uses bounded bytes. Unavailable adapters remain visible with their reason.</p></div><StatusPill label="Offline capable" /></div><label className="file-drop"><input type="file" onChange={(event) => setFile(event.target.files?.[0]?.name ?? "")} /><span className="drop-icon">▱</span><strong>{file || "Choose a local file"}</strong><small>File picker is keyboard accessible. Nothing uploads.</small></label><div className="adapter-grid">{categories.map((item, index) => <button className={`adapter ${index > 3 ? "disabled-adapter" : ""}`} key={item} type="button" onClick={() => setCategory(item)}><span>{index > 3 ? "○" : "✓"}</span>{item}<b>{index > 3 ? "Unavailable" : "Ready"}</b></button>)}</div><div className="converter-controls"><FormField label="Category"><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></FormField><FormField label="Target format" hint="Choices are limited to the selected category and installed adapters."><select><option>Inspect source</option><option>Plain text</option><option>JSON</option><option>CSV</option></select></FormField><Button variant="primary" disabled={!file} onClick={() => notify(`Conversion preview ready for ${file}`)}>Preview conversion</Button></div></SurfaceCard>; }
+function makeOperationRequest(path: string): OperationRequest {
+  return {
+    kind: "file",
+    input: { action: "read", path },
+    timeoutMs: 30_000,
+    retry: { maxAttempts: 2 },
+  };
+}
+export function Operations({
+  notify,
+  onQueued,
+}: {
+  notify: (message: string) => void;
+  onQueued: () => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [path, setPath] = useState("");
+  const [preview, setPreview] = useState<OperationPreview | null>(null);
+  const [error, setError] = useState("");
+  const choose = async () => {
+    if (!bridge?.pickFile) {
+      setError(
+        "File picker is unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    const selected = await bridge.pickFile();
+    if (selected) setPath(selected);
+  };
+  const review = async () => {
+    if (!bridge?.previewOperation) {
+      setError(
+        "Operation preview is unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    if (!path) {
+      setError("Choose a local file before previewing this operation.");
+      return;
+    }
+    try {
+      setPreview(await bridge.previewOperation(makeOperationRequest(path)));
+    } catch (cause) {
+      setError(publicError(cause, "Operation preview failed"));
+    }
+  };
+  const enqueue = async () => {
+    if (!bridge?.enqueueOperation || !path) return;
+    try {
+      await bridge.enqueueOperation(makeOperationRequest(path));
+      notify("Operation added to the local queue");
+      onQueued();
+    } catch (cause) {
+      setError(publicError(cause, "Operation queue request failed"));
+    }
+  };
+  return (
+    <div className="two-column">
+      <SurfaceCard>
+        <div className="section-heading">
+          <div>
+            <h2>Typed operation</h2>
+            <p>Select a local file and review the exact typed action.</p>
+          </div>
+          <StatusPill
+            label={bridge ? "Bridge ready" : "Unavailable"}
+            tone={bridge ? "ready" : "waiting"}
+          />
+        </div>
+        <div className="path-field">
+          <input
+            value={path}
+            onChange={(event) => setPath(event.target.value)}
+            placeholder="Choose a local file"
+            aria-label="Operation target"
+          />
+          <Button onClick={choose}>Browse</Button>
+        </div>
+        <div className="button-row">
+          <Button
+            variant="primary"
+            onClick={review}
+            disabled={!bridge?.previewOperation || !path}
+          >
+            Review preview
+          </Button>
+          <Button
+            onClick={enqueue}
+            disabled={!preview || !bridge?.enqueueOperation}
+          >
+            Add to queue
+          </Button>
+        </div>
+        {preview && (
+          <div className="preview-panel" role="status">
+            <strong>{preview.title}</strong>
+            <p>{preview.summary}</p>
+            <small>
+              {preview.affectedItems.length} affected item(s) ·{" "}
+              {preview.warnings.length} warning(s)
+            </small>
+          </div>
+        )}
+        {error && (
+          <p className="inline-error" role="alert">
+            {error}
+          </p>
+        )}
+      </SurfaceCard>
+      <SurfaceCard>
+        <h2>Operation safety</h2>
+        <div className="check-list">
+          <div>
+            <span>✓</span>
+            <strong>Typed action</strong>
+            <small>Only registered actions can be queued.</small>
+          </div>
+          <div>
+            <span>✓</span>
+            <strong>Review before run</strong>
+            <small>Affected paths and limits are shown first.</small>
+          </div>
+          <div>
+            <span>✓</span>
+            <strong>Bridge state</strong>
+            <small>
+              {bridge
+                ? "The local service bridge is connected."
+                : "Connect the local service bridge to enable this action."}
+            </small>
+          </div>
+        </div>
+      </SurfaceCard>
+    </div>
+  );
+}
 
-function Models({ notify }: { notify: (message: string) => void }): JSX.Element { const [health, setHealth] = useState("Unavailable"); const [prompt, setPrompt] = useState(""); const [reply, setReply] = useState(""); return <div className="two-column"><SurfaceCard><div className="section-heading"><div><h2>Local model service</h2><p>Health, installed tags, and fit evidence stay visible even offline.</p></div><StatusPill label={health} tone={health === "Healthy" ? "ready" : "waiting"} /></div><div className="model-health"><div className="model-icon">◈</div><div><strong>Local service</strong><p>{health === "Healthy" ? "Loopback health check succeeded." : "No local service responded. Retry is available and does not change files."}</p></div></div><div className="button-row"><Button variant="primary" onClick={() => { setHealth("Healthy"); notify("Local model health refreshed"); }}>Refresh health</Button><Button onClick={() => notify("Offline model help opened")}>Open offline help</Button></div><div className="model-list"><div className="list-row"><span className="row-icon">◉</span><div><strong>Installed tags</strong><small>Not enumerated until the local service responds</small></div><StatusPill label="Unknown" tone="waiting" /></div><div className="list-row"><span className="row-icon">◇</span><div><strong>Hardware fit</strong><small>RAM, GPU, storage, and model metadata are required</small></div><StatusPill label="Unknown" tone="waiting" /></div></div></SurfaceCard><SurfaceCard><h2>Local chat</h2><p className="muted">Choose a verified model before sending a prompt. This disabled state is honest.</p><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Prompt is unavailable until a model is healthy" disabled={health !== "Healthy"} /><div className="button-row"><Button variant="primary" disabled={health !== "Healthy" || !prompt} onClick={() => setReply(`Local response prepared for: ${prompt}`)}>Send</Button><Button variant="quiet" onClick={() => { setPrompt(""); setReply(""); }}>Clear</Button></div>{reply && <div className="reply-box" role="status">{reply}</div>}</SurfaceCard></div>; }
+export function Queue({
+  notify,
+  refreshKey,
+}: {
+  notify: (message: string) => void;
+  refreshKey: number;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [items, setItems] = useState<readonly OperationState[]>([]);
+  const [error, setError] = useState("");
+  const load = async () => {
+    if (!bridge?.listOperations) {
+      setError(
+        "Queue state is unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    try {
+      setItems(await bridge.listOperations(true));
+    } catch (cause) {
+      setError(publicError(cause, "Queue state failed"));
+    }
+  };
+  useEffect(() => {
+    void load();
+  }, [refreshKey]);
+  const act = async (id: string, action: "cancel" | "retry") => {
+    try {
+      const ok =
+        action === "cancel"
+          ? await bridge?.cancelOperation?.(id)
+          : await bridge?.retryOperation?.(id);
+      notify(
+        ok
+          ? `Operation ${action} requested`
+          : `Operation ${action} was not accepted`,
+      );
+      await load();
+    } catch (cause) {
+      setError(publicError(cause, `Operation ${action} failed`));
+    }
+  };
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Durable operation queue</h2>
+          <p>
+            State is read from the typed bridge. No local success is invented.
+          </p>
+        </div>
+        <Button variant="quiet" onClick={() => void load()}>
+          Refresh
+        </Button>
+      </div>
+      {items.length ? (
+        <div className="queue-list">
+          {items.map((item) => (
+            <div className="queue-item" key={item.id}>
+              <span className="queue-icon">◴</span>
+              <div className="queue-main">
+                <strong>{item.request.kind}</strong>
+                <span>
+                  {item.state} ·{" "}
+                  {item.progress?.message ?? "No progress message"}
+                </span>
+                <div className="progress-track">
+                  <span
+                    style={{
+                      width: `${item.progress?.total ? Math.min(100, (item.progress.completed / item.progress.total) * 100) : item.state === "succeeded" ? 100 : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="button-row">
+                {item.state === "running" && (
+                  <Button
+                    variant="danger"
+                    onClick={() => void act(item.id, "cancel")}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                {item.state === "failed" && (
+                  <Button onClick={() => void act(item.id, "retry")}>
+                    Retry
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon="≋"
+          title="Queue is empty"
+          description={error || "Add a typed operation from Operations."}
+        />
+      )}
+      {error && (
+        <p className="inline-error" role="alert">
+          {error}
+        </p>
+      )}
+    </SurfaceCard>
+  );
+}
 
-function Authenticator({ notify }: { notify: (message: string) => void }): JSX.Element { const [pairing, setPairing] = useState(false); const [issuer, setIssuer] = useState(""); const [account, setAccount] = useState(""); return <SurfaceCard><div className="section-heading"><div><h2>Authenticator</h2><p>Local pairing supports QR and manual parameters. Secrets are never rendered in history or exports.</p></div><StatusPill label="No entries" tone="neutral" /></div>{!pairing ? <EmptyState icon="◎" title="No authenticator entries" description="Start pairing to add a local issuer and account. A current code confirms the pairing before it is stored." action={<Button variant="primary" onClick={() => setPairing(true)}>Start pairing</Button>} /> : <div className="auth-card"><div className="qr-placeholder" aria-label="Local QR pairing preview"><span>QR</span><small>Generated locally after the account fields are complete</small></div><div><div className="form-grid"><FormField label="Issuer"><input value={issuer} onChange={(event) => setIssuer(event.target.value)} placeholder="Issuer name" /></FormField><FormField label="Account"><input value={account} onChange={(event) => setAccount(event.target.value)} placeholder="Account label" /></FormField><FormField label="Current code" hint="The code confirms pairing. It is not stored in source history."><input inputMode="numeric" maxLength={8} placeholder="Enter current code" /></FormField></div><div className="button-row"><Button variant="primary" disabled={!issuer || !account} onClick={() => { notify("Pairing draft validated locally"); setPairing(false); }}>Confirm pairing</Button><Button variant="quiet" onClick={() => setPairing(false)}>Cancel</Button></div></div></div>}</SurfaceCard>; }
+export function Files({ notify }: { notify: (message: string) => void }): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [file, setFile] = useState<File | null>(null);
+  const [catalog, setCatalog] = useState<{
+    adapters?: Array<{
+      id?: string;
+      label?: string;
+      category?: string;
+      availability?: "enabled" | "disabled";
+      unavailableReason?: string;
+      sourceFormats?: readonly string[];
+      targetFormats?: readonly string[];
+    }>;
+    missingCategories?: readonly string[];
+  } | null>(null);
+  const [detection, setDetection] = useState<unknown>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!bridge?.converterCatalog) {
+      setError(
+        "Converter catalog is unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    bridge
+      .converterCatalog()
+      .then((value) => setCatalog(value as typeof catalog))
+      .catch((cause) =>
+        setError(publicError(cause, "Converter catalog failed")),
+      );
+  }, []);
+  const inspect = async () => {
+    if (!file || !bridge?.detectFile) return;
+    try {
+      setDetection(
+        await bridge.detectFile(new Uint8Array(await file.arrayBuffer())),
+      );
+      setError("");
+    } catch (cause) {
+      setError(publicError(cause, "File byte inspection failed"));
+    }
+  };
+  const adapters = catalog?.adapters ?? [];
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Local file converter</h2>
+          <p>Detection and adapters are supplied by the local service.</p>
+        </div>
+        <StatusPill
+          label={catalog ? `${adapters.length} adapters` : "Unknown"}
+          tone={catalog ? "ready" : "waiting"}
+        />
+      </div>
+      <div className="path-field">
+        <label>
+          <span className="sr-only">Choose local file for byte inspection</span>
+          <input
+            type="file"
+            aria-label="Choose local file for byte inspection"
+            onChange={(event) => {
+              setFile(event.target.files?.[0] ?? null);
+              setDetection(null);
+              setError("");
+            }}
+          />
+        </label>
+        <span>{file ? `${file.name} (${file.size} bytes)` : "No file selected"}</span>
+      </div>
+      <div className="adapter-grid">
+        {adapters.map((adapter) => (
+          <button
+            className={`adapter ${adapter.availability === "disabled" ? "disabled-adapter" : ""}`}
+            key={adapter.id ?? adapter.label}
+            type="button"
+            disabled={adapter.availability !== "enabled"}
+            onClick={() => notify(`${adapter.label ?? adapter.id} is enabled by the local converter service`)}
+          >
+            <span>{adapter.availability === "enabled" ? "✓" : "○"}</span>
+            {adapter.label ?? adapter.id ?? "Unnamed adapter"}
+            <b>{adapter.availability === "enabled" ? "Enabled" : adapter.unavailableReason ?? "Unavailable"}</b>
+            <small>{adapter.category ?? "Uncategorized"}: {(adapter.sourceFormats ?? []).join(", ")} → {(adapter.targetFormats ?? []).join(", ")}</small>
+          </button>
+        ))}
+      </div>
+      {catalog?.missingCategories?.length ? <p className="disabled-reason">No registered adapter: {catalog.missingCategories.join(", ")}</p> : null}
+      {error && (
+        <p className="inline-error" role="alert">
+          {error}
+        </p>
+      )}
+      <Button
+        variant="primary"
+        disabled={!file || !bridge?.detectFile}
+        onClick={() => void inspect()}
+      >
+        Inspect selected file
+      </Button>
+      {detection !== null && <pre className="preview-panel" aria-label="Detected file signature">{JSON.stringify(detection, null, 2)}</pre>}
+    </SurfaceCard>
+  );
+}
 
-function History({ notify }: { notify: (message: string) => void }): JSX.Element { const [selected, setSelected] = useState<string[]>([]); const entries = [{ id: "settings", search: "Settings changed", title: "Settings changed", detail: "Theme and language preferences are local." }, { id: "queue", search: "Operation queued", title: "Operation queued", detail: "A typed operation was added to the local queue." }]; const toggle = (id: string) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]); return <SurfaceCard><div className="section-heading"><div><h2>Local history</h2><p>Redacted metadata is append-only and stays beside this app's local data.</p></div><div className="button-row"><Button variant="quiet" onClick={() => notify("History export prepared without sensitive values")}>Export redacted</Button><Button variant="danger" disabled={!selected.length} onClick={() => notify(`${selected.length} history item(s) selected for review`)}>Review selected</Button></div></div><div className="history-filter"><FormField label="Date range"><input type="date" /></FormField><FormField label="Action"><select><option>All recorded actions</option><option>Settings changed</option><option>Operation queued</option></select></FormField></div><div className="history-list">{entries.map((entry) => <label className="history-row" key={entry.id}><input type="checkbox" checked={selected.includes(entry.id)} onChange={() => toggle(entry.id)} /><span className="timeline-dot">✓</span><span><strong>{entry.title}</strong><small>{entry.detail}</small></span></label>)}</div><div className="bulk-bar"><Button variant="quiet" onClick={() => setSelected(entries.map((entry) => entry.id))}>Select all on this page</Button><Button variant="quiet" onClick={() => setSelected([])}>Invert or clear</Button><span>{selected.length} selected</span></div></SurfaceCard>; }
+export function Models({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [health, setHealth] = useState("Unknown");
+  const [version, setVersion] = useState("Unavailable");
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [reply, setReply] = useState("");
+  const refresh = async () => {
+    if (!bridge?.ollamaHealth) {
+      setHealth("Unavailable");
+      notify(
+        "Local model health is unavailable because the bridge is not connected",
+      );
+      return;
+    }
+    try {
+      const result = (await bridge.ollamaHealth()) as {
+        state?: string;
+        reason?: string;
+      };
+      if (result.state === "healthy") {
+        setHealth("Healthy");
+        if (bridge.ollamaVersion) setVersion(await bridge.ollamaVersion());
+        if (bridge.ollamaModels) {
+          const value = (await bridge.ollamaModels()) as {
+            installed?: readonly { name?: string }[];
+          };
+          const names = (value.installed ?? []).flatMap((item) =>
+            item.name ? [item.name] : [],
+          );
+          setModels(names);
+          setSelectedModel((current) =>
+            current && names.includes(current) ? current : (names[0] ?? ""),
+          );
+        }
+        notify("Local model health verified");
+      } else {
+        setHealth(
+          result.reason ? `Unavailable: ${result.reason}` : "Unavailable",
+        );
+      }
+    } catch (cause) {
+      setHealth(`Unavailable: ${publicError(cause, "health request failed")}`);
+    }
+  };
+  const chat = async () => {
+    if (!bridge?.ollamaChat || health !== "Healthy" || !prompt || !selectedModel)
+      return;
+    try {
+      const chunks = await bridge.ollamaChat(
+        selectedModel,
+        [{ role: "user", content: prompt }],
+        {},
+      );
+      setReply(chunks.map((chunk) => chunk.content ?? "").join(""));
+    } catch (cause) {
+      notify(publicError(cause, "Local chat failed"));
+    }
+  };
+  return (
+    <div className="two-column">
+      <SurfaceCard>
+        <div className="section-heading">
+          <div>
+            <h2>Local model service</h2>
+            <p>Healthy is shown only after a successful bridge response.</p>
+          </div>
+          <StatusPill
+            label={health}
+            tone={health === "Healthy" ? "ready" : "waiting"}
+          />
+        </div>
+        <div className="model-health">
+          <div className="model-icon">◈</div>
+          <div>
+            <strong>Version</strong>
+            <p>{version}</p>
+            <small>
+              {models.length
+                ? `${models.length} installed model(s)`
+                : "Installed model list unavailable"}
+            </small>
+          </div>
+        </div>
+        <div className="button-row">
+          <Button
+            variant="primary"
+            onClick={() => void refresh()}
+            disabled={!bridge?.ollamaHealth}
+          >
+            Refresh health
+          </Button>
+          <p className="muted">Model catalog and pull controls are not exposed by this bridge.</p>
+        </div>
+      </SurfaceCard>
+      <SurfaceCard>
+        <h2>Local chat</h2>
+        <p className="muted">
+          {models.length
+            ? `Using ${selectedModel}`
+            : "Choose a healthy installed model before sending a prompt."}
+        </p>
+        <label className="form-field">
+          <span>Installed model</span>
+          <select
+            aria-label="Installed model"
+            value={selectedModel}
+            disabled={health !== "Healthy" || !models.length}
+            onChange={(event) => setSelectedModel(event.target.value)}
+          >
+            {models.map((model) => <option key={model} value={model}>{model}</option>)}
+          </select>
+        </label>
+        <textarea
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder="Prompt is unavailable until a model is healthy"
+          disabled={health !== "Healthy" || !models.length}
+        />
+        <div className="button-row">
+          <Button
+            variant="primary"
+            disabled={health !== "Healthy" || !models.length || !prompt}
+            onClick={() => void chat()}
+          >
+            Send
+          </Button>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setPrompt("");
+              setReply("");
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+        {reply && (
+          <div className="reply-box" role="status">
+            {reply}
+          </div>
+        )}
+      </SurfaceCard>
+    </div>
+  );
+}
 
-function Documentation({ screen, notify }: { screen: ScreenId; notify: (message: string) => void }): JSX.Element { const articles = [{ id: "privacy", search: "Local privacy", title: "Local privacy", body: "Validated local inputs stay on this computer. Public records contain only neutral status." }, { id: "operations", search: "Operations", title: "Typed operations", body: "Select an allowlisted action, review its target, and queue it with visible progress." }, { id: "appearance", search: "Appearance", title: "Appearance editing", body: "Use the context menu on any rendered target to open a reversible appearance editor." }, { id: "updates", search: "Updates", title: "Unsigned updates", body: "Updates are checked in the background and require an explicit restart action." }]; const [selected, setSelected] = useState(articles[0]); return <SurfaceCard><div className="section-heading"><div><h2>Offline documentation</h2><p>Articles are bundled with this build. This surface does not depend on a network.</p></div><Button variant="quiet" onClick={() => notify("Documentation index is already local")}>Refresh index</Button></div><div className="docs-layout"><div className="article-list">{articles.map((article) => <button className={`article-row ${selected.id === article.id ? "selected" : ""}`} key={article.id} type="button" onClick={() => setSelected(article)}><span>▤</span><b>{article.title}</b></button>)}</div><article className="article-content" id={`tabpanel-${screen}`}><p className="eyebrow">OFFLINE ARTICLE</p><h3>{selected.title}</h3><p>{selected.body}</p><h4>Suggested articles</h4><ul><li>Local privacy</li><li>Typed operations</li><li>Appearance editing</li></ul></article></div></SurfaceCard>; }
+function Authenticator({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Authenticator</h2>
+          <p>Pairing needs a real QR route and local credential handling.</p>
+        </div>
+        <StatusPill label="No entries" tone="neutral" />
+      </div>
+      <EmptyState
+        icon="◎"
+        title="Pairing is unavailable"
+        description="The current bridge exposes no QR renderer or TOTP registration route. No secret or fake code is shown."
+        action={
+          <Button
+            disabled={!bridge}
+            onClick={() =>
+              notify("Authenticator bridge route is not connected")
+            }
+          >
+            Start pairing
+          </Button>
+        }
+      />
+      <p className="disabled-reason">
+        Required condition: a typed local QR and credential-vault route must be
+        connected before pairing can begin.
+      </p>
+    </SurfaceCard>
+  );
+}
 
-function Changelog({ notify }: { notify: (message: string) => void }): JSX.Element { return <SurfaceCard><div className="section-heading"><div><h2>Changelog</h2><p>Every release entry carries its date and source commit.</p></div><div className="button-row"><Button variant="quiet" onClick={() => notify("Changelog copied locally")}>Copy filtered view</Button><Button variant="quiet" onClick={() => notify("Changelog export prepared")}>Export Markdown</Button></div></div><div className="release-entry"><span className="release-version">0.1.0</span><div><strong>Initial local cockpit</strong><p>Typed local operations, privacy controls, accessibility foundations, and offline documentation.</p><a href="https://github.com/Ding-Ding-Projects/wording-lens/commit/2818dcaef832de8192b98333643c40dc63fc8a31" target="_blank" rel="noreferrer">2818dca</a></div><time dateTime={BUILD_PROVENANCE.updatedAt}>{formatProvenanceDate(BUILD_PROVENANCE.updatedAt)}</time></div><FormField label="Date filter"><input type="date" aria-label="Changelog date filter" /></FormField></SurfaceCard>; }
+export function History({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [records, setRecords] = useState<unknown[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [exportSummary, setExportSummary] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!bridge?.listHistory) {
+      setError("History is unavailable because the bridge is not connected.");
+      return;
+    }
+    bridge
+      .listHistory()
+      .then((value) => {
+        const raw = value as { revisions?: unknown[] } | unknown;
+        const envelope = raw && typeof raw === "object" ? raw as { revisions?: unknown[] } : undefined;
+        setRecords(
+          Array.isArray(raw)
+            ? raw
+            : envelope && Array.isArray(envelope.revisions)
+              ? envelope.revisions
+              : [],
+        );
+      })
+      .catch((cause) => setError(publicError(cause, "History load failed")));
+  }, []);
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Local history</h2>
+          <p>Redacted metadata remains local and searchable.</p>
+        </div>
+        <Button
+          variant="quiet"
+          disabled={!bridge?.exportHistory}
+          onClick={async () => {
+            try {
+              const exported = await bridge?.exportHistory?.();
+              const result = exported as {
+                schemaVersion?: unknown;
+                privateSnapshotsOmitted?: unknown;
+                revisions?: unknown[];
+              };
+              setExportSummary(
+                result && typeof result === "object"
+                  ? `Schema ${String(result.schemaVersion ?? "unknown")}, ${Array.isArray(result.revisions) ? result.revisions.length : 0} redacted revisions, private snapshots omitted: ${result.privateSnapshotsOmitted === true ? "yes" : "no"}.`
+                  : "History export returned an unexpected result.",
+              );
+            } catch (cause) {
+              setError(publicError(cause, "History export failed"));
+            }
+          }}
+        >
+          Export redacted
+        </Button>
+      </div>
+      <div className="history-filter">
+        <FormField label="Date range">
+          <input type="date" />
+        </FormField>
+        <FormField label="Action">
+          <select>
+            <option>All recorded actions</option>
+            <option>Settings changed</option>
+            <option>Operation queued</option>
+          </select>
+        </FormField>
+      </div>
+      {exportSummary && <p className="muted">{exportSummary}</p>}
+      {records.length ? (
+        <div className="history-list">
+          {records.map((record, index) => {
+            const id = `record-${index}`;
+            return (
+              <label className="history-row" key={id}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(id)}
+                  onChange={() =>
+                    setSelected((items) =>
+                      items.includes(id)
+                        ? items.filter((item) => item !== id)
+                        : [...items, id],
+                    )
+                  }
+                />
+                <span className="timeline-dot">✓</span>
+                <span>
+                  <strong>
+                    {typeof record === "object" && record && "label" in record
+                      ? String((record as { label: unknown }).label)
+                      : "Local revision"}
+                  </strong>
+                  <small>Redacted record retained locally</small>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          icon="↺"
+          title="No history records"
+          description={
+            error || "Changes recorded by the local service will appear here."
+          }
+        />
+      )}
+      <div className="bulk-bar">
+        <Button
+          variant="quiet"
+          onClick={() =>
+            setSelected(records.map((_, index) => `record-${index}`))
+          }
+        >
+          Select all on this page
+        </Button>
+        <Button variant="quiet" onClick={() => setSelected([])}>
+          Clear selection
+        </Button>
+        <span>{selected.length} selected</span>
+      </div>
+      {error && (
+        <p className="inline-error" role="alert">
+          {error}
+        </p>
+      )}
+    </SurfaceCard>
+  );
+}
 
-function Notifications({ items, clear }: { items: string[]; clear: () => void }): JSX.Element { return <SurfaceCard><div className="section-heading"><div><h2>Notification centre</h2><p>Informational updates stay non-blocking and reviewable.</p></div><Button variant="quiet" disabled={!items.length} onClick={clear}>Dismiss all</Button></div>{items.length ? <div className="notification-list">{items.map((item, index) => <div className="notification" key={`${item}-${index}`}><input type="checkbox" aria-label={`Select notification ${index + 1}`} /><StatusPill label="Info" /><span>{item}</span><button type="button" onClick={clear} aria-label="Dismiss notification">×</button></div>)}</div> : <EmptyState icon="♢" title="All caught up" description="Dismissed notifications remain available in local history." />}</SurfaceCard>; }
+function Documentation({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  const articles = [
+    {
+      id: "privacy",
+      title: "Local privacy",
+      body: "Validated local inputs stay on this computer. Public records contain only neutral status.",
+    },
+    {
+      id: "operations",
+      title: "Typed operations",
+      body: "Select an allowlisted action, review its target, and queue it with visible progress.",
+    },
+    {
+      id: "appearance",
+      title: "Appearance editing",
+      body: "Use the context menu on any rendered target to open a reversible appearance editor.",
+    },
+    {
+      id: "updates",
+      title: "Unsigned updates",
+      body: "Updates are checked in the background and require an explicit restart action.",
+    },
+  ];
+  const [selected, setSelected] = useState(articles[0]);
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Offline documentation</h2>
+          <p>
+            Articles are bundled with this build and do not depend on a network.
+          </p>
+        </div>
+        <Button
+          variant="quiet"
+          onClick={() => notify("Documentation index is already local")}
+        >
+          Refresh index
+        </Button>
+      </div>
+      <div className="docs-layout">
+        <div className="article-list">
+          {articles.map((article) => (
+            <button
+              className={`article-row ${selected.id === article.id ? "selected" : ""}`}
+              key={article.id}
+              type="button"
+              onClick={() => setSelected(article)}
+            >
+              <span>▤</span>
+              <b>{article.title}</b>
+            </button>
+          ))}
+        </div>
+        <article className="article-content">
+          <p className="eyebrow">OFFLINE ARTICLE</p>
+          <h3>{selected.title}</h3>
+          <p>{selected.body}</p>
+          <h4>Suggested articles</h4>
+          <ul>
+            <li>Local privacy</li>
+            <li>Typed operations</li>
+            <li>Appearance editing</li>
+          </ul>
+        </article>
+      </div>
+    </SurfaceCard>
+  );
+}
 
-function Status({ provenance }: { provenance: AppProvenance }): JSX.Element { return <div className="status-grid"><SurfaceCard><div className="section-heading"><div><h2>Live session status</h2><p>Current evidence is shown with its real state.</p></div><StatusPill label="Local" /></div><div className="status-banner"><strong>Ready for local work</strong><span>External status bridge not connected</span></div><div className="evidence-list"><div><span>Build provenance</span><StatusPill label="Loaded" /></div><div><span>Runtime bridge</span><StatusPill label="Available" /></div><div><span>Remote status</span><StatusPill label="Unconnected" tone="waiting" /></div></div></SurfaceCard><SurfaceCard><h2>Version provenance</h2><p className="muted">This exact build reports its recorded provenance before navigation.</p><dl className="provenance-list"><dt>Version</dt><dd>{provenance.version || "Unavailable"}</dd><dt>Updated</dt><dd>{isValidProvenance(provenance) ? formatProvenanceDate(provenance.updatedAt) : "Unavailable"}</dd><dt>Source</dt><dd>{provenance.source || "Unavailable"}</dd></dl></SurfaceCard></div>; }
+function Changelog({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Changelog</h2>
+          <p>Every release entry carries its date and source commit.</p>
+        </div>
+        <div className="button-row">
+          <Button
+            variant="quiet"
+            onClick={() => notify("Changelog copied locally")}
+          >
+            Copy filtered view
+          </Button>
+          <Button
+            variant="quiet"
+            onClick={() => notify("Changelog export prepared")}
+          >
+            Export Markdown
+          </Button>
+        </div>
+      </div>
+      <div className="release-entry">
+        <span className="release-version">0.1.0</span>
+        <div>
+          <strong>Initial local cockpit</strong>
+          <p>
+            Typed local operations, privacy controls, accessibility foundations,
+            and offline documentation.
+          </p>
+          <a
+            href="https://github.com/Ding-Ding-Projects/wording-lens/commit/2818dcaef832de8192b98333643c40dc63fc8a31"
+            target="_blank"
+            rel="noreferrer"
+          >
+            2818dca
+          </a>
+        </div>
+        <time dateTime={BUILD_PROVENANCE.updatedAt}>
+          {formatProvenanceDate(BUILD_PROVENANCE.updatedAt)}
+        </time>
+      </div>
+      <FormField label="Date filter">
+        <input type="date" aria-label="Changelog date filter" />
+      </FormField>
+    </SurfaceCard>
+  );
+}
 
-function Settings({ mode, setMode, theme, setTheme, displayName, setDisplayName, schoolMode, setSchoolMode, emoji, setEmoji, toneEn, setToneEn, toneZh, setToneZh, density, setDensity, notify }: { mode: LanguageMode; setMode: (value: LanguageMode) => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; displayName: string; setDisplayName: (value: string) => void; schoolMode: boolean; setSchoolMode: (value: boolean) => void; emoji: boolean; setEmoji: (value: boolean) => void; toneEn: number; setToneEn: (value: number) => void; toneZh: number; setToneZh: (value: number) => void; density: string; setDensity: (value: string) => void; notify: (message: string) => void }): JSX.Element { const [tab, setTab] = useState("general"); const [vocab, setVocab] = useState("No local wording file loaded"); const tabs = [{ id: "general", label: "General" }, { id: "appearance", label: "Appearance" }, { id: "accessibility", label: "Accessibility" }, { id: "privacy", label: "Privacy" }, { id: "integrations", label: "Integrations" }]; const upload = async (file: File | undefined) => { if (!file || !window.desktopBridge?.saveVocabulary) { setVocab("No local bridge is connected"); return; } try { const result = await window.desktopBridge.saveVocabulary(new Uint8Array(await file.arrayBuffer())); setVocab(result.loaded ? "Validated local wording active" : "Wording file rejected"); notify(result.loaded ? "Local wording validated" : "Wording file rejected"); } catch { setVocab("Wording file rejected"); notify("Wording file rejected"); } }; return <div className="settings-layout"><div className="settings-tabs" role="tablist" aria-orientation="vertical" aria-label="Settings sections">{tabs.map((item) => <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} className={tab === item.id ? "selected" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}</div><div className="settings-content" role="tabpanel"><SurfaceCard><h2>{tabs.find((item) => item.id === tab)?.label}</h2><p className="muted">Changes apply immediately and persist locally.</p>{tab === "general" && <><div className="setting-row"><div><strong>Display name</strong><small>Changes the visible label only. Package and data identity stay stable.</small></div><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></div><div className="setting-row"><div><strong>Language mode</strong><small>English, playful Cantonese, or bilingual.</small></div><select value={schoolMode ? "en" : mode} disabled={schoolMode} onChange={(event) => setMode(event.target.value as LanguageMode)}><option value="en">English</option><option value="zh-Hant">繁體中文</option><option value="bilingual">Bilingual · 雙語</option></select></div><div className="setting-row"><div><strong>Theme</strong><small>Light or dark appearance.</small></div><select value={theme} onChange={(event) => setTheme(event.target.value as "dark" | "light")}><option value="dark">Dark</option><option value="light">Light</option></select></div><div className="setting-row"><div><strong>Density</strong><small>Controls spacing while preserving target sizes.</small></div><select value={density} onChange={(event) => setDensity(event.target.value)}><option>Comfortable</option><option>Compact</option><option>Spacious</option></select></div><div className="setting-row"><div><strong>School mode</strong><small>{schoolMode ? "English-only presentation is active." : "Optional language and delight controls remain available."}</small></div><input type="checkbox" checked={schoolMode} onChange={(event) => { setSchoolMode(event.target.checked); notify(event.target.checked ? "School mode enabled" : "School mode disabled"); }} aria-label="School mode" /></div></>}{tab === "appearance" && <><div className="setting-row"><div><strong>App logo</strong><small>Choose a local preset or add a custom image in the appearance editor.</small></div><select aria-label="App logo preset"><option>Electric cyan mark</option><option>Mint mark</option><option>Monochrome mark</option></select></div><div className="logo-preview" aria-label="Current app logo preview">WL</div><div className="button-row"><Button onClick={() => notify("Appearance editor opened for Settings")}>Edit Settings appearance</Button><Button variant="quiet" onClick={() => notify("Appearance reset to the shipped mark")}>Reset appearance</Button></div></>}{tab === "accessibility" && <><div className="tone-grid"><FormField label={`English tone ${toneEn}`} hint="1 serious, 5 maximum playfulness"><input type="range" min="1" max="5" value={toneEn} onChange={(event) => setToneEn(Number(event.target.value))} /></FormField><FormField label={`Cantonese tone ${toneZh}`} hint="1 serious, 5 最活潑"><input type="range" min="1" max="5" value={toneZh} onChange={(event) => setToneZh(Number(event.target.value))} /></FormField></div><div className="setting-row"><div><strong>Show emojis in dialogs and message boxes</strong><small>Decorative only, never part of control names.</small></div><input type="checkbox" checked={emoji} onChange={(event) => setEmoji(event.target.checked)} aria-label="Show emojis in dialogs and message boxes" /></div><div className="setting-row"><div><strong>Narrator</strong><small>Off by default. Choose language, machine voice, rate, and pitch when enabled.</small></div><input type="checkbox" aria-label="Enable narrator" /></div><div className="voice-grid"><FormField label="Narrated language"><select><option>English</option><option>粵語</option><option>Both, serialized</option></select></FormField><FormField label="English voice"><select><option>Choose automatically</option></select></FormField><FormField label="Cantonese voice"><select><option>Choose automatically</option></select></FormField><FormField label="Rate"><input type="range" min="0.5" max="2" step="0.1" defaultValue="1" /></FormField><FormField label="Pitch"><input type="range" min="0" max="2" step="0.1" defaultValue="1" /></FormField></div></>}{tab === "privacy" && <>{!schoolMode && <><p>Personal wording is accepted only through an explicit local JSON file. The cache is encrypted locally and may be cleared at any time.</p><label className="upload-control"><input type="file" accept="application/json,.json" onChange={(event) => void upload(event.target.files?.[0])} /><span>Choose local JSON file</span></label><div className="vocab-status"><StatusPill label={vocab.includes("active") ? "Loaded" : "Empty"} tone={vocab.includes("active") ? "ready" : "waiting"} /><span>{vocab}</span><Button variant="quiet" onClick={async () => { await window.desktopBridge?.clearVocabulary?.(); setVocab("No local wording file loaded"); notify("Local wording cleared"); }}>Clear and restore original wording</Button></div></>}<p className="muted">Exports and history omit private file values and metadata.</p></>}{tab === "integrations" && <><div className="setting-row"><div><strong>External editor</strong><small>Choose a detected editor or add one through a file picker.</small></div><Button onClick={() => notify("Editor picker opened")}>Choose editor</Button></div><div className="setting-row"><div><strong>Status bridge</strong><small>Not connected. The local status surface remains available.</small></div><StatusPill label="Unconnected" tone="waiting" /></div></>}</SurfaceCard></div></div>; }
+export function Notifications({
+  notify,
+}: {
+  notify: (message: string) => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [items, setItems] = useState<readonly NotificationRecord[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const load = async () => {
+    if (!bridge?.listNotifications) {
+      setError(
+        "Notifications are unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    try {
+      setItems(await bridge.listNotifications(true));
+    } catch (cause) {
+      setError(publicError(cause, "Notification load failed"));
+    }
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const dismiss = async (id: string) => {
+    try {
+      await bridge?.dismissNotifications?.([id]);
+      await load();
+      notify("Notification dismissed locally");
+    } catch (cause) {
+      setError(publicError(cause, "Notification dismissal failed"));
+    }
+  };
+  const dismissSelected = async () => {
+    if (!selected.length || !bridge?.dismissNotifications) return;
+    try {
+      const dismissed = await bridge.dismissNotifications(selected);
+      setSelected([]);
+      await load();
+      notify(`${dismissed} notification${dismissed === 1 ? "" : "s"} dismissed locally`);
+    } catch (cause) {
+      setError(publicError(cause, "Notification dismissal failed"));
+    }
+  };
+  return (
+    <SurfaceCard>
+      <div className="section-heading">
+        <div>
+          <h2>Notification centre</h2>
+          <p>Informational updates stay non-blocking and reviewable.</p>
+        </div>
+        <Button variant="quiet" onClick={() => void load()}>
+          Refresh
+        </Button>
+      </div>
+      {items.length ? (
+        <div className="notification-list">
+          {items.map((item) => (
+            <div className="notification" key={item.id}>
+              <input
+                type="checkbox"
+                aria-label={`Select notification ${item.title}`}
+                checked={selected.includes(item.id)}
+                onChange={() =>
+                  setSelected((current) =>
+                    current.includes(item.id)
+                      ? current.filter((id) => id !== item.id)
+                      : [...current, item.id],
+                  )
+                }
+              />
+              <StatusPill
+                label={item.level}
+                tone={item.level === "error" ? "danger" : "ready"}
+              />
+              <span>
+                {item.title}: {item.body}
+              </span>
+              <button
+                type="button"
+                onClick={() => void dismiss(item.id)}
+                aria-label={`Dismiss ${item.title}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon="♢"
+          title="No notifications"
+          description={
+            error || "Notifications added by the local bridge appear here."
+          }
+        />
+      )}
+      {items.length > 0 && (
+        <div className="bulk-bar">
+          <Button
+            variant="quiet"
+            onClick={() =>
+              setSelected(
+                items.filter((item) => !item.dismissedAt).map((item) => item.id),
+              )
+            }
+          >
+            Select active notifications
+          </Button>
+          <Button
+            variant="quiet"
+            disabled={!selected.length}
+            onClick={() => void dismissSelected()}
+          >
+            Dismiss selected
+          </Button>
+          <span>{selected.length} selected</span>
+        </div>
+      )}
+      {error && (
+        <p className="inline-error" role="alert">
+          {error}
+        </p>
+      )}
+    </SurfaceCard>
+  );
+}
 
-function ContextMenu({ x, y, close, openLock, notify }: { x: number; y: number; close: () => void; openLock: () => void; notify: (message: string) => void }): JSX.Element { const [query, setQuery] = useState(""); const [regex, setRegex] = useState(false); const items = ["Edit appearance…", "Lock this element…", "Export…", "Open documentation"]; const visible = items.filter((item) => item.toLowerCase().includes(query.toLowerCase())); return <div className="context-menu" style={{ left: x, top: y }} role="menu"><SearchField label="Context menu search" query={query} onQuery={setQuery} onOpenRegex={() => setRegex(!regex)} />{regex && <RegexBuilder onClose={() => setRegex(false)} />}{visible.length ? visible.map((item) => <button type="button" role="menuitem" key={item} onClick={() => { if (item.startsWith("Lock")) openLock(); else notify(`${item.replace("…", "")} opened locally`); close(); }}>{item}</button>) : <p className="menu-empty">No matching actions</p>}</div>; }
+function Status({ provenance }: { provenance: AppProvenance }): JSX.Element {
+  return (
+    <div className="status-grid">
+      <SurfaceCard>
+        <div className="section-heading">
+          <div>
+            <h2>Live session status</h2>
+            <p>Current evidence is shown with its real state.</p>
+          </div>
+          <StatusPill label="Local" />
+        </div>
+        <div className="status-banner">
+          <strong>Ready for local work</strong>
+          <span>External status bridge not connected</span>
+        </div>
+        <div className="evidence-list">
+          <div>
+            <span>Build provenance</span>
+            <StatusPill label="Loaded" />
+          </div>
+          <div>
+            <span>Runtime bridge</span>
+            <StatusPill label="Available" />
+          </div>
+          <div>
+            <span>Remote status</span>
+            <StatusPill label="Unconnected" tone="waiting" />
+          </div>
+        </div>
+      </SurfaceCard>
+      <SurfaceCard>
+        <h2>Version provenance</h2>
+        <p className="muted">
+          This exact build reports its recorded provenance before navigation.
+        </p>
+        <dl className="provenance-list">
+          <dt>Version</dt>
+          <dd>{provenance.version || "Unavailable"}</dd>
+          <dt>Updated</dt>
+          <dd>
+            {isValidProvenance(provenance)
+              ? formatProvenanceDate(provenance.updatedAt)
+              : "Unavailable"}
+          </dd>
+          <dt>Source</dt>
+          <dd>{provenance.source || "Unavailable"}</dd>
+        </dl>
+      </SurfaceCard>
+    </div>
+  );
+}
 
-function DestructiveDialog({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }): JSX.Element { const [first, setFirst] = useState(false); const [second, setSecond] = useState(false); const [slider, setSlider] = useState(0); return <Dialog title="Confirm destructive action" eyebrow="SUPER CONFIRMATION" onClose={onClose}><p>This action affects only the selected local records. Two independent keys and a full-range slider are required.</p><div className="key-grid"><label><input type="checkbox" checked={first} onChange={(event) => setFirst(event.target.checked)} /> Key one confirmed</label><label><input type="checkbox" checked={second} onChange={(event) => setSecond(event.target.checked)} /> Key two confirmed</label></div><label className="slider-confirm">Confirmation progress<input type="range" min="0" max="100" value={slider} onChange={(event) => setSlider(Number(event.target.value))} /><span>{slider}%</span></label><div className="button-row"><Button variant="danger" disabled={!first || !second || slider < 100} onClick={onConfirm}>Confirm irreversible action</Button><Button variant="quiet" onClick={onClose}>Emergency exit</Button></div></Dialog>; }
+export function Settings({
+  settings,
+  mode,
+  schoolMode,
+  setSchoolMode,
+  updateSettings,
+  notify,
+}: {
+  settings: AppSettings;
+  mode: LanguageMode;
+  schoolMode: boolean;
+  setSchoolMode: (value: boolean) => void;
+  updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  notify: (message: string) => void;
+}): JSX.Element {
+  const bridge = window.desktopBridge;
+  const [tab, setTab] = useState("general");
+  const [vocab, setVocab] = useState<VocabularyStatus>({
+    authenticated: false,
+    loaded: false,
+    entryCount: 0,
+  });
+  const [secret, setSecret] = useState("");
+  const [unlock, setUnlock] = useState("");
+  const [privateEntries, setPrivateEntries] = useState<readonly { key: string; value: string }[]>([]);
+  const [privateInput, setPrivateInput] = useState("");
+  const [privateOutput, setPrivateOutput] = useState("");
+  const [vocabularyMessage, setVocabularyMessage] = useState("");
+  const [editorList, setEditorList] = useState<readonly EditorCandidate[]>([]);
+  const [scheduleMessage, setScheduleMessage] = useState("");
+  const [recovery, setRecovery] = useState("");
+  const tabs = [
+    { id: "general", label: "General" },
+    { id: "appearance", label: "Appearance" },
+    { id: "accessibility", label: "Accessibility" },
+    { id: "privacy", label: "Privacy" },
+    { id: "integrations", label: "Integrations" },
+  ];
+  useEffect(() => {
+    if (bridge?.vocabularyStatus)
+      bridge
+        .vocabularyStatus()
+        .then(setVocab)
+        .catch(() => undefined);
+  }, []);
+  const configure = async () => {
+    if (!bridge?.configureVocabularyUnlock || !secret) {
+      setVocab({ ...vocab, authenticated: false });
+      return;
+    }
+    try {
+      await bridge.configureVocabularyUnlock(secret);
+      setSecret("");
+      setUnlock("");
+      setVocab({ ...vocab, authenticated: false });
+      notify("Private wording unlock configured locally");
+    } catch (cause) {
+      setVocabularyMessage("Unlock configuration failed. The local service did not accept the request.");
+    }
+  };
+  const authenticate = async () => {
+    if (!bridge?.unlockVocabulary || !unlock) return;
+    try {
+      const authenticated = await bridge.unlockVocabulary(unlock);
+      setUnlock("");
+      if (bridge.vocabularyStatus) setVocab(await bridge.vocabularyStatus());
+      setVocabularyMessage(authenticated ? "Private wording is unlocked locally." : "Private wording unlock was not accepted.");
+    } catch {
+      setUnlock("");
+      setVocabularyMessage("Private wording unlock failed. Check the local unlock value and try again.");
+    }
+  };
+  const upload = async (file: File | undefined) => {
+    if (!file || !bridge?.saveVocabulary || !vocab.authenticated) return;
+    try {
+      setVocab(
+        await bridge.saveVocabulary(new Uint8Array(await file.arrayBuffer())),
+      );
+      setPrivateEntries([]);
+      setVocabularyMessage("Private wording file validated locally.");
+    } catch {
+      setVocabularyMessage("Private wording file was rejected. Its contents were not applied.");
+    }
+  };
+  const loadPrivateEntries = async () => {
+    if (!bridge?.vocabularyEntries || !vocab.authenticated || !vocab.loaded) return;
+    try {
+      setPrivateEntries(await bridge.vocabularyEntries());
+      setVocabularyMessage("Private entries were read from the authenticated local service.");
+    } catch {
+      setVocabularyMessage("Private entries could not be read from the authenticated local service.");
+    }
+  };
+  const renderPrivateText = async () => {
+    if (!bridge?.renderPrivateText || !vocab.authenticated || !vocab.loaded || !privateInput) return;
+    try {
+      setPrivateOutput(await bridge.renderPrivateText(privateInput, "private-ui"));
+      setVocabularyMessage("Private text was rendered only in this local settings surface.");
+    } catch {
+      setVocabularyMessage("Private text could not be rendered by the local service.");
+    }
+  };
+  const loadEditors = async () => {
+    if (!bridge?.listEditors) {
+      notify(
+        "Editor detection unavailable because the bridge is not connected",
+      );
+      return;
+    }
+    setEditorList(await bridge.listEditors());
+  };
+  const saveSchedule = async () => {
+    if (!bridge?.validateSchedule) {
+      setScheduleMessage(
+        "Schedule validation unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    try {
+      await bridge.validateSchedule({
+        version: 1,
+        rules: [],
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      setScheduleMessage("Empty schedule validated locally.");
+    } catch (cause) {
+      setScheduleMessage(publicError(cause, "Schedule validation failed"));
+    }
+  };
+  const openRecovery = async () => {
+    if (!bridge?.openRecoveryFolder) {
+      setRecovery(
+        "Recovery folder route is unavailable because the bridge is not connected.",
+      );
+      return;
+    }
+    const result = (await bridge.openRecoveryFolder()) as {
+      path?: string;
+      opened?: boolean;
+      message?: string;
+    };
+    setRecovery(
+      result.opened
+        ? `Opened recovery folder: ${result.path ?? "local data"}`
+        : (result.message ?? "Recovery folder was not opened."),
+    );
+  };
+  return (
+    <div className="settings-layout">
+      <div
+        className="settings-tabs"
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label="Settings sections"
+      >
+        {tabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            tabIndex={tab === item.id ? 0 : -1}
+            className={tab === item.id ? "selected" : ""}
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="settings-content" role="tabpanel">
+        <SurfaceCard>
+          <h2>{tabs.find((item) => item.id === tab)?.label}</h2>
+          <p className="muted">
+            Changes apply immediately and persist through the typed settings
+            route when connected.
+          </p>
+          {tab === "general" && (
+            <>
+              <div className="setting-row">
+                <div>
+                  <strong>Display name</strong>
+                  <small>
+                    Changes visible text only. Package and data identity stay
+                    stable.
+                  </small>
+                </div>
+                <input
+                  value={settings.displayName}
+                  onChange={(event) =>
+                    void updateSettings({ displayName: event.target.value })
+                  }
+                />
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>Language mode</strong>
+                  <small>English, playful Cantonese, or bilingual.</small>
+                </div>
+                <select
+                  value={schoolMode ? "en" : mode}
+                  disabled={schoolMode}
+                  onChange={(event) =>
+                    void updateSettings({
+                      languageMode:
+                        settingsForLanguage[event.target.value as LanguageMode],
+                    })
+                  }
+                >
+                  <option value="en">English</option>
+                  <option value="zh-Hant">繁體中文</option>
+                  <option value="bilingual">Bilingual · 雙語</option>
+                </select>
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>Theme</strong>
+                  <small>Light or dark appearance.</small>
+                </div>
+                <select
+                  value={settings.theme}
+                  onChange={(event) =>
+                    void updateSettings({
+                      theme: event.target.value as AppSettings["theme"],
+                    })
+                  }
+                >
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>Density</strong>
+                  <small>Controls spacing while preserving target sizes.</small>
+                </div>
+                <select
+                  value={settings.density}
+                  onChange={(event) =>
+                    void updateSettings({
+                      density: event.target.value as AppSettings["density"],
+                    })
+                  }
+                >
+                  <option value="comfortable">Comfortable</option>
+                  <option value="compact">Compact</option>
+                  <option value="spacious">Spacious</option>
+                </select>
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>School mode</strong>
+                  <small>
+                    {schoolMode
+                      ? "English-only presentation is active."
+                      : "Optional language and delight controls remain available."}
+                  </small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={schoolMode}
+                  onChange={(event) => setSchoolMode(event.target.checked)}
+                  aria-label="School mode"
+                />
+              </div>
+            </>
+          )}
+          {tab === "appearance" && (
+            <>
+              <div className="setting-row">
+                <div>
+                  <strong>App logo</strong>
+                  <small>
+                    Presets are shipped. Custom conversion needs a connected
+                    local decoder.
+                  </small>
+                </div>
+                <select aria-label="App logo preset">
+                  <option>Electric cyan mark</option>
+                  <option>Mint mark</option>
+                  <option>Monochrome mark</option>
+                </select>
+              </div>
+              <div
+                className="logo-preview"
+                aria-label="Current app logo preview"
+              >
+                WL
+              </div>
+              <label className="upload-control">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  onChange={() =>
+                    notify(
+                      "Custom logo conversion unavailable: no decoder route is connected",
+                    )
+                  }
+                />
+                <span>Choose custom image</span>
+              </label>
+              <div className="button-row">
+                <Button
+                  onClick={() => notify("Appearance editor opened locally")}
+                >
+                  Edit Settings appearance
+                </Button>
+                <Button
+                  variant="quiet"
+                  onClick={() => notify("Appearance reset to shipped mark")}
+                >
+                  Reset appearance
+                </Button>
+              </div>
+            </>
+          )}
+          {tab === "accessibility" && !schoolMode && (
+            <>
+              <div className="tone-grid">
+                <FormField
+                  label={`English tone ${settings.funnyEnglish}`}
+                  hint="1 serious, 5 maximum playfulness"
+                >
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={settings.funnyEnglish}
+                    onChange={(event) =>
+                      void updateSettings({
+                        funnyEnglish: Number(
+                          event.target.value,
+                        ) as AppSettings["funnyEnglish"],
+                      })
+                    }
+                  />
+                </FormField>
+                <FormField
+                  label={`Cantonese tone ${settings.funnyCantonese}`}
+                  hint="1 serious, 5 最活潑"
+                >
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={settings.funnyCantonese}
+                    onChange={(event) =>
+                      void updateSettings({
+                        funnyCantonese: Number(
+                          event.target.value,
+                        ) as AppSettings["funnyCantonese"],
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>Show emojis in dialogs and message boxes</strong>
+                  <small>Decorative only, never part of control names.</small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.emojiDialogs}
+                  onChange={(event) =>
+                    void updateSettings({ emojiDialogs: event.target.checked })
+                  }
+                  aria-label="Show emojis in dialogs and message boxes"
+                />
+              </div>
+              <div className="setting-row">
+                <div>
+                  <strong>Narrator</strong>
+                  <small>
+                    Off by default. Voice lists are resolved from the machine
+                    when available.
+                  </small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.narrationEnabled}
+                  onChange={(event) =>
+                    void updateSettings({
+                      narrationEnabled: event.target.checked,
+                    })
+                  }
+                  aria-label="Enable narrator"
+                />
+              </div>
+              <div className="voice-grid">
+                <FormField label="Narrated language">
+                  <select
+                    value={settings.narrationLanguage}
+                    onChange={(event) =>
+                      void updateSettings({
+                        narrationLanguage: event.target
+                          .value as AppSettings["narrationLanguage"],
+                      })
+                    }
+                  >
+                    <option value="english">English</option>
+                    <option value="cantonese">粵語</option>
+                    <option value="both">Both, serialized</option>
+                  </select>
+                </FormField>
+                <FormField label="English voice">
+                  <select>
+                    <option>Choose automatically</option>
+                  </select>
+                </FormField>
+                <FormField label="Cantonese voice">
+                  <select>
+                    <option>Choose automatically</option>
+                  </select>
+                </FormField>
+                <FormField label="Rate">
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.1"
+                    defaultValue="1"
+                  />
+                </FormField>
+                <FormField label="Pitch">
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    defaultValue="1"
+                  />
+                </FormField>
+              </div>
+            </>
+          )}
+          {tab === "accessibility" && schoolMode && (
+            <p>
+              Accessibility controls remain available. Optional language and
+              tone controls are omitted while School mode is active.
+            </p>
+          )}
+          {tab === "privacy" && !schoolMode && (
+            <>
+              <div className="unlock-grid">
+                <FormField
+                  label="Configure local unlock"
+                  hint="The secret is sent only to the local bridge and never shown again."
+                >
+                  <input
+                    type="password"
+                    value={secret}
+                    onChange={(event) => setSecret(event.target.value)}
+                  />
+                </FormField>
+                <Button
+                  onClick={() => void configure()}
+                  disabled={!secret || !bridge?.configureVocabularyUnlock}
+                >
+                  Configure unlock
+                </Button>
+                <FormField label="Unlock private wording">
+                  <input
+                    type="password"
+                    value={unlock}
+                    onChange={(event) => setUnlock(event.target.value)}
+                  />
+                </FormField>
+                <Button
+                  onClick={() => void authenticate()}
+                  disabled={!unlock || !bridge?.unlockVocabulary}
+                >
+                  Unlock
+                </Button>
+              </div>
+              <div className="vocab-status">
+                <StatusPill
+                  label={vocab.authenticated ? "Unlocked" : "Locked"}
+                  tone={vocab.authenticated ? "ready" : "waiting"}
+                />
+                <span>
+                  {vocab.loaded
+                    ? `${vocab.entryCount} private entries available`
+                    : "No private entries loaded"}
+                </span>
+              </div>
+              <label className="upload-control">
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  disabled={!vocab.authenticated}
+                  onChange={(event) => void upload(event.target.files?.[0])}
+                />
+                <span>
+                  {vocab.authenticated
+                    ? "Choose local JSON file"
+                    : "Unlock to choose local JSON file"}
+                </span>
+              </label>
+              <div className="private-atlas">
+                <strong>Private entry atlas</strong>
+                <p>
+                  {vocab.authenticated && vocab.loaded
+                    ? `${vocab.entryCount} entries are available only through the authenticated local service.`
+                    : "Disabled until the authenticated private-only service reports loaded entries."}
+                </p>
+              </div>
+              <div className="button-row">
+                <Button variant="quiet" disabled={!vocab.authenticated || !vocab.loaded} onClick={() => void loadPrivateEntries()}>
+                  List authenticated entries
+                </Button>
+              </div>
+              {privateEntries.length > 0 && <ul className="private-atlas" aria-label="Authenticated private entries">{privateEntries.map((entry) => <li key={entry.key}><code>{entry.key}</code><span>{entry.value}</span></li>)}</ul>}
+              <FormField label="Render private text locally" hint="This preview is sent only to the authenticated local service and is not included in exports or history.">
+                <textarea value={privateInput} onChange={(event) => setPrivateInput(event.target.value)} disabled={!vocab.authenticated || !vocab.loaded} />
+              </FormField>
+              <Button variant="quiet" disabled={!privateInput || !vocab.authenticated || !vocab.loaded} onClick={() => void renderPrivateText()}>
+                Render local preview
+              </Button>
+              {privateOutput && <div className="preview-panel" aria-label="Rendered local private text">{privateOutput}</div>}
+              {vocabularyMessage && <p className="muted" role="status">{vocabularyMessage}</p>}
+              <Button
+                variant="quiet"
+                onClick={async () => {
+                  if (!bridge?.clearVocabulary) {
+                    setVocabularyMessage("Private wording cannot be cleared because the local service is unavailable.");
+                    return;
+                  }
+                  try {
+                    setVocab(await bridge.clearVocabulary());
+                    setPrivateEntries([]);
+                    setPrivateInput("");
+                    setPrivateOutput("");
+                    setVocabularyMessage("Private wording was cleared and original text was restored.");
+                  } catch {
+                    setVocabularyMessage("Private wording could not be cleared by the local service.");
+                  }
+                }}
+              >
+                Clear and restore original wording
+              </Button>
+              <p className="muted">
+                Exports and history omit private values. This bridge does not expose vocabulary source metadata.
+              </p>
+            </>
+          )}
+          {tab === "privacy" && schoolMode && (
+            <p>
+              Privacy controls remain available. Private wording controls are
+              omitted while School mode is active.
+            </p>
+          )}
+          {tab === "integrations" && (
+            <>
+              <div className="setting-row">
+                <div>
+                  <strong>External editor</strong>
+                  <small>
+                    Detect installed editors through the local service.
+                  </small>
+                </div>
+                <Button onClick={() => void loadEditors()}>
+                  Detect editors
+                </Button>
+              </div>
+              {editorList.map((editor) => (
+                <div className="list-row" key={editor.id}>
+                  <span className="row-icon">⌁</span>
+                  <div>
+                    <strong>{editor.id}</strong>
+                    <small>{editor.executable}</small>
+                  </div>
+                  <StatusPill
+                    label={editor.available ? "Available" : "Unavailable"}
+                    tone={editor.available ? "ready" : "waiting"}
+                  />
+                </div>
+              ))}
+              <div className="setting-row">
+                <div>
+                  <strong>Scheduled settings</strong>
+                  <small>
+                    Versioned local rules use the configured timezone.
+                  </small>
+                </div>
+                <Button onClick={() => void saveSchedule()}>
+                  Validate schedule
+                </Button>
+              </div>
+              {scheduleMessage && <p className="muted">{scheduleMessage}</p>}
+              <div className="setting-row">
+                <div>
+                  <strong>Recovery folder</strong>
+                  <small>
+                    Open the local data folder for self-service recovery.
+                  </small>
+                </div>
+                <Button onClick={() => void openRecovery()}>Open folder</Button>
+              </div>
+              {recovery && <p className="muted">{recovery}</p>}
+            </>
+          )}
+        </SurfaceCard>
+      </div>
+    </div>
+  );
+}
 
-function App(): JSX.Element { const [screen, setScreen] = useState<ScreenId>(readRoute); const [mode, setMode] = useStored<LanguageMode>("wording-lens.language", "en"); const [theme, setTheme] = useStored<"dark" | "light">("wording-lens.theme", "dark"); const [schoolMode, setSchoolMode] = useStored("wording-lens.school-mode", false); const [collapsed, setCollapsed] = useStored("wording-lens.rail-collapsed", false); const [displayName, setDisplayName] = useStored("wording-lens.display-name", "Wording Lens"); const [emoji, setEmoji] = useStored("wording-lens.emoji", true); const [toneEn, setToneEn] = useStored("wording-lens.tone-en", 5); const [toneZh, setToneZh] = useStored("wording-lens.tone-zh", 5); const [density, setDensity] = useStored("wording-lens.density", "Comfortable"); const [provenance, setProvenance] = useState<AppProvenance>(BUILD_PROVENANCE); const [query, setQuery] = useState(""); const [regex, setRegex] = useState(false); const [regexPattern, setRegexPattern] = useState(""); const [notifications, setNotifications] = useState<string[]>([]); const [palette, setPalette] = useState(false); const [context, setContext] = useState<{ x: number; y: number } | null>(null); const [lockWizard, setLockWizard] = useState(false); const [destructive, setDestructive] = useState(false); const focusSelector = useRef("[data-focus-id='surface-search-overview']"); const navigate = (next: ScreenId) => { window.location.hash = `#/${next}`; setScreen(next); setQuery(""); setRegex(false); setRegexPattern(""); focusSelector.current = `[data-focus-id='surface-search-${next}']`; }; const notify = (message: string) => setNotifications((items) => [message, ...items].slice(0, 12)); useReturnFocus(lockWizard, "[data-focus-id='surface-search-overview']"); useEffect(() => { const onHash = () => setScreen(readRoute()); window.addEventListener("hashchange", onHash); return () => window.removeEventListener("hashchange", onHash); }, []); useEffect(() => { document.documentElement.dataset.theme = theme; document.documentElement.dataset.density = density.toLowerCase(); }, [theme, density]); useEffect(() => { const listener = (event: KeyboardEvent) => { if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "f") { event.preventDefault(); setPalette(true); } if (event.key === "F10" && event.shiftKey) { event.preventDefault(); setContext({ x: 120, y: 120 }); } if (event.key === "Escape") { setPalette(false); setContext(null); setLockWizard(false); setDestructive(false); } }; window.addEventListener("keydown", listener); return () => window.removeEventListener("keydown", listener); }, []); useEffect(() => { window.desktopBridge?.getProvenance().then((value) => { if (isValidProvenance(value)) setProvenance(value); }).catch(() => undefined); }, []); useEffect(() => { requestAnimationFrame(() => document.querySelector<HTMLElement>(focusSelector.current)?.focus()); }, [screen]); const header = <SurfaceHeader screen={screen} mode={schoolMode ? "en" : mode} query={query} setQuery={setQuery} regex={regex} setRegex={setRegex} regexPattern={regexPattern} setRegexPattern={setRegexPattern} />; const screenBody = screen === "overview" ? <Overview navigate={navigate} notify={notify} mode={schoolMode ? "en" : mode} /> : screen === "operations" ? <Operations navigate={navigate} notify={notify} /> : screen === "queue" ? <Queue notify={notify} /> : screen === "files" ? <Files notify={notify} /> : screen === "models" ? <Models notify={notify} /> : screen === "authenticator" ? <Authenticator notify={notify} /> : screen === "history" ? <History notify={notify} /> : screen === "documentation" ? <Documentation screen={screen} notify={notify} /> : screen === "changelog" ? <Changelog notify={notify} /> : screen === "notifications" ? <Notifications items={notifications} clear={() => setNotifications([])} /> : screen === "status" ? <Status provenance={provenance} /> : screen === "settings" ? <Settings mode={mode} setMode={setMode} theme={theme} setTheme={setTheme} displayName={displayName} setDisplayName={setDisplayName} schoolMode={schoolMode} setSchoolMode={setSchoolMode} emoji={emoji} setEmoji={setEmoji} toneEn={toneEn} setToneEn={setToneEn} toneZh={toneZh} setToneZh={setToneZh} density={density} setDensity={setDensity} notify={notify} /> : <Projects notify={notify} />; return <div className="app-shell" onContextMenu={(event) => { event.preventDefault(); setContext({ x: Math.min(event.clientX, window.innerWidth - 310), y: Math.min(event.clientY, window.innerHeight - 260) }); }}><header className="title-bar"><div className="title-bar-drag"><span className="brand-glyph" aria-hidden="true">WL</span><strong>{displayName}</strong></div><div className="provenance" aria-label={`Version ${provenance.version || "Unavailable"}`}><span><small>VERSION</small><strong>{provenance.version || "Unavailable"}</strong></span><i /><span><small>UPDATED</small><strong>{isValidProvenance(provenance) ? formatProvenanceDate(provenance.updatedAt) : "Unavailable"}</strong></span></div><div className="title-bar-actions"><select aria-label="Language mode" value={schoolMode ? "en" : mode} disabled={schoolMode} onChange={(event) => setMode(event.target.value as LanguageMode)}><option value="en">English</option><option value="zh-Hant">繁體中文</option><option value="bilingual">Bilingual · 雙語</option></select><button type="button" className="palette-trigger" aria-label="Open command palette" onClick={() => setPalette(true)}>⌘⇧F</button><button type="button" className="theme-button" aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "☼" : "☾"}</button></div><WindowControls /></header><div className="workspace"><TabRail active={screen} mode={schoolMode ? "en" : mode} onNavigate={navigate} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} /><main className="main-content" id={`tabpanel-${screen}`} role="tabpanel" aria-label={localize(labels[screen], schoolMode ? "en" : mode)}>{header}{screenBody}</main></div><footer className="status-footer"><span><i className="footer-dot" aria-hidden="true" /> Local only</span><span>Typed bridge active</span><span>Ctrl+Shift+F palette</span><span className="footer-spacer" /><span>Ready</span></footer>{palette && <div className="palette-backdrop" onClick={() => setPalette(false)}><section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(event) => event.stopPropagation()}><div className="palette-head"><span>⌘</span><input autoFocus placeholder="Search commands, features, and settings" onChange={(event) => setQuery(event.target.value)} /><kbd>ESC</kbd></div><div className="palette-section"><small>DESTINATIONS</small>{screenOrder.filter((item) => `${labels[item].en} ${labels[item].zh}`.toLowerCase().includes(query.toLowerCase())).map((item) => <button type="button" key={item} data-focus-id={`palette-${item}`} onClick={() => { navigate(item); setPalette(false); }}>{localize(labels[item], schoolMode ? "en" : mode)}<b>↵</b></button>)}</div></section></div>}{context && <ContextMenu x={context.x} y={context.y} close={() => setContext(null)} openLock={() => setLockWizard(true)} notify={notify} />}{lockWizard && <Dialog title="Lock this element" eyebrow="TOY LOCK" onClose={() => setLockWizard(false)}><p>This is a self-imposed speed bump, not security. Recover by clearing the app's local data folder.</p><FormField label="Lock policy"><select><option>PIN</option><option>Password</option><option>PIN plus password</option><option>Password plus TOTP</option><option>PIN plus TOTP</option><option>Password plus PIN plus TOTP</option></select></FormField><div className="button-row"><Button onClick={() => { setLockWizard(false); notify("Toy lock configured locally"); }}>Create lock</Button><Button variant="quiet" onClick={() => setLockWizard(false)}>Cancel</Button></div></Dialog>}{destructive && <DestructiveDialog onClose={() => setDestructive(false)} onConfirm={() => { setDestructive(false); notify("Destructive action confirmed locally"); }} />}</div>; }
-function Projects({ notify }: { notify: (message: string) => void }): JSX.Element { const [folder, setFolder] = useState(""); return <SurfaceCard><div className="section-heading"><div><h2>No projects yet</h2><p>Choose a local folder. Paths stay on this computer.</p></div><StatusPill label="Ready" /></div><div className="path-field"><input value={folder} onChange={(event) => setFolder(event.target.value)} placeholder="Choose a project folder" /><label className="browse-button"><input type="file" onChange={(event) => setFolder(event.target.files?.[0]?.name ?? "")} />Browse</label></div><div className="button-row"><Button variant="primary" disabled={!folder} onClick={() => notify(`Local folder selected: ${folder}`)}>Open local folder</Button><Button variant="quiet" onClick={() => notify("Project form reset")}>Reset</Button></div></SurfaceCard>; }
+function ContextMenu({
+  x,
+  y,
+  close,
+  notify,
+}: {
+  x: number;
+  y: number;
+  close: () => void;
+  notify: (message: string) => void;
+}): JSX.Element {
+  const [query, setQuery] = useState("");
+  const [regex, setRegex] = useState(false);
+  const items = [
+    "Edit appearance…",
+    "Lock this element…",
+    "Export…",
+    "Open documentation",
+  ];
+  const visible = items.filter((item) =>
+    item.toLowerCase().includes(query.toLowerCase()),
+  );
+  return (
+    <div className="context-menu" style={{ left: x, top: y }} role="menu">
+      <SearchField
+        label="Context menu search"
+        query={query}
+        onQuery={setQuery}
+        onOpenRegex={() => setRegex(!regex)}
+      />
+      {regex && <RegexBuilder onClose={() => setRegex(false)} />}
+      {visible.length ? (
+        visible.map((item) => (
+          <button
+            type="button"
+            role="menuitem"
+            key={item}
+            onClick={() => {
+              notify(`${item.replace("…", "")} opened locally`);
+              close();
+            }}
+          >
+            {item}
+          </button>
+        ))
+      ) : (
+        <p className="menu-empty">No matching actions</p>
+      )}
+    </div>
+  );
+}
 
-createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);
+function DestructiveDialog({
+  onClose,
+  onConfirm,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+}): JSX.Element {
+  const [first, setFirst] = useState(false);
+  const [second, setSecond] = useState(false);
+  const [slider, setSlider] = useState(0);
+  return (
+    <Dialog
+      title="Confirm destructive action"
+      eyebrow="SUPER CONFIRMATION"
+      onClose={onClose}
+    >
+      <p>
+        This action affects only the selected local records. Two independent
+        keys and a full-range slider are required.
+      </p>
+      <div className="key-grid">
+        <label>
+          <input
+            type="checkbox"
+            checked={first}
+            onChange={(event) => setFirst(event.target.checked)}
+          />{" "}
+          Key one confirmed
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={second}
+            onChange={(event) => setSecond(event.target.checked)}
+          />{" "}
+          Key two confirmed
+        </label>
+      </div>
+      <label className="slider-confirm">
+        Confirmation progress
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={slider}
+          onChange={(event) => setSlider(Number(event.target.value))}
+        />
+        <span>{slider}%</span>
+      </label>
+      <div className="button-row">
+        <Button
+          variant="danger"
+          disabled={!first || !second || slider < 100}
+          onClick={onConfirm}
+        >
+          Confirm irreversible action
+        </Button>
+        <Button variant="quiet" onClick={onClose}>
+          Emergency exit
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+export function App(): JSX.Element {
+  const [screen, setScreen] = useState<ScreenId>(readRoute);
+  const [settings, setSettings] = useState<AppSettings>(safeSettings);
+  const [schoolMode, setSchoolMode] = useState(
+    () => window.localStorage.getItem("wording-lens.school-mode") === "true",
+  );
+  const [provenance, setProvenance] = useState<AppProvenance>(BUILD_PROVENANCE);
+  const [query, setQuery] = useState("");
+  const [regex, setRegex] = useState(false);
+  const [regexPattern, setRegexPattern] = useState("");
+  const [notifications, setNotifications] = useState<string[]>([]);
+  const [updater, setUpdater] = useState<UpdaterState>({
+    state: "idle",
+    unsigned: true,
+  });
+  const [palette, setPalette] = useState(false);
+  const [context, setContext] = useState<{ x: number; y: number } | null>(null);
+  const [destructive, setDestructive] = useState(false);
+  const [queueRefresh, setQueueRefresh] = useState(0);
+  const bridge = window.desktopBridge;
+  const mode = schoolMode ? "en" : languageForSettings[settings.languageMode];
+  const notify = (message: string) =>
+    setNotifications((items) => [message, ...items].slice(0, 12));
+  const updateSettings = async (patch: Partial<AppSettings>) => {
+    try {
+      if (bridge?.updateSettings) {
+        const next = await bridge.updateSettings(patch);
+        setSettings(next);
+      } else {
+        const next = safeSettings({ ...settings, ...patch });
+        setSettings(next);
+        window.localStorage.setItem(
+          "wording-lens.settings",
+          JSON.stringify(next),
+        );
+        notify("Settings saved locally; typed bridge unavailable");
+      }
+    } catch (cause) {
+      notify(publicError(cause, "Settings update failed"));
+    }
+  };
+  const refreshUpdater = async () => {
+    if (!bridge?.getUpdaterState) {
+      notify("Updater state unavailable because the bridge is not connected");
+      return;
+    }
+    try {
+      setUpdater(await bridge.getUpdaterState());
+    } catch (cause) {
+      notify(publicError(cause, "Updater state failed"));
+    }
+  };
+  useEffect(() => {
+    const raw = window.localStorage.getItem("wording-lens.settings");
+    if (raw) {
+      try {
+        setSettings(safeSettings(JSON.parse(raw) as Partial<AppSettings>));
+      } catch {
+        /* invalid local fallback is ignored */
+      }
+    }
+    if (bridge?.getSettings)
+      bridge
+        .getSettings()
+        .then(setSettings)
+        .catch((cause) => notify(publicError(cause, "Settings load failed")));
+    if (bridge?.getProvenance)
+      bridge
+        .getProvenance()
+        .then((value) => {
+          if (isValidProvenance(value)) setProvenance(value);
+        })
+        .catch(() => undefined);
+    void refreshUpdater();
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.dataset.density = settings.density;
+    document.documentElement.dataset.reducedMotion = settings.reducedMotion
+      ? "true"
+      : "false";
+    window.localStorage.setItem("wording-lens.school-mode", String(schoolMode));
+  }, [settings, schoolMode]);
+  useEffect(() => {
+    const onHash = () => setScreen(readRoute());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        setPalette(true);
+      }
+      if (event.key === "F10" && event.shiftKey) {
+        event.preventDefault();
+        setContext({ x: 120, y: 120 });
+      }
+      if (event.key === "Escape") {
+        setPalette(false);
+        setContext(null);
+        setDestructive(false);
+      }
+    };
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
+  const navigate = (next: ScreenId) => {
+    window.location.hash = `#/${next}`;
+    setScreen(next);
+    setQuery("");
+    setRegex(false);
+    setRegexPattern("");
+  };
+  const body =
+    screen === "overview" ? (
+      <Overview
+        navigate={navigate}
+        notify={notify}
+        updater={updater}
+        refreshUpdater={() => void refreshUpdater()}
+      />
+    ) : screen === "projects" ? (
+      <Projects notify={notify} />
+    ) : screen === "operations" ? (
+      <Operations
+        notify={notify}
+        onQueued={() => setQueueRefresh((value) => value + 1)}
+      />
+    ) : screen === "queue" ? (
+      <Queue notify={notify} refreshKey={queueRefresh} />
+    ) : screen === "files" ? (
+      <Files notify={notify} />
+    ) : screen === "models" ? (
+      <Models notify={notify} />
+    ) : screen === "authenticator" ? (
+      <Authenticator notify={notify} />
+    ) : screen === "history" ? (
+      <History notify={notify} />
+    ) : screen === "documentation" ? (
+      <Documentation notify={notify} />
+    ) : screen === "changelog" ? (
+      <Changelog notify={notify} />
+    ) : screen === "notifications" ? (
+      <Notifications notify={notify} />
+    ) : screen === "status" ? (
+      <Status provenance={provenance} />
+    ) : (
+      <Settings
+        settings={settings}
+        mode={mode}
+        schoolMode={schoolMode}
+        setSchoolMode={setSchoolMode}
+        updateSettings={updateSettings}
+        notify={notify}
+      />
+    );
+  return (
+    <div
+      className="app-shell"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setContext({
+          x: Math.min(event.clientX, window.innerWidth - 310),
+          y: Math.min(event.clientY, window.innerHeight - 260),
+        });
+      }}
+    >
+      <header className="title-bar">
+        <div className="title-bar-drag">
+          <span className="brand-glyph" aria-hidden="true">
+            WL
+          </span>
+          <strong>{settings.displayName}</strong>
+        </div>
+        <div
+          className="provenance"
+          aria-label={`Version ${provenance.version || "Unavailable"}`}
+        >
+          <span>
+            <small>VERSION</small>
+            <strong>{provenance.version || "Unavailable"}</strong>
+          </span>
+          <i />
+          <span>
+            <small>UPDATED</small>
+            <strong>
+              {isValidProvenance(provenance)
+                ? formatProvenanceDate(provenance.updatedAt)
+                : "Unavailable"}
+            </strong>
+          </span>
+        </div>
+        <div className="title-bar-actions">
+          <select
+            aria-label="Language mode"
+            value={schoolMode ? "en" : mode}
+            disabled={schoolMode}
+            onChange={(event) =>
+              void updateSettings({
+                languageMode:
+                  settingsForLanguage[event.target.value as LanguageMode],
+              })
+            }
+          >
+            <option value="en">English</option>
+            <option value="zh-Hant">繁體中文</option>
+            <option value="bilingual">Bilingual · 雙語</option>
+          </select>
+          <button
+            type="button"
+            className="palette-trigger"
+            aria-label="Open command palette"
+            onClick={() => setPalette(true)}
+          >
+            ⌘⇧F
+          </button>
+          <button
+            type="button"
+            className="theme-button"
+            aria-label="Toggle theme"
+            onClick={() =>
+              void updateSettings({
+                theme: settings.theme === "dark" ? "light" : "dark",
+              })
+            }
+          >
+            {settings.theme === "dark" ? "☼" : "☾"}
+          </button>
+        </div>
+        <WindowControls />
+      </header>
+      <div className="workspace">
+        <TabRail
+          active={screen}
+          mode={mode}
+          onNavigate={navigate}
+          collapsed={false}
+          onToggle={() =>
+            notify(
+              "Navigation rail is always visible at the minimum client area",
+            )
+          }
+        />
+        <main
+          className="main-content"
+          id={`tabpanel-${screen}`}
+          role="tabpanel"
+          aria-label={localize(labels[screen], mode)}
+        >
+          <SurfaceHeader
+            screen={screen}
+            mode={mode}
+            query={query}
+            setQuery={setQuery}
+            regex={regex}
+            setRegex={setRegex}
+            onApplyRegex={setRegexPattern}
+          />
+          {body}
+        </main>
+      </div>
+      <footer className="status-footer">
+        <span>
+          <i className="footer-dot" aria-hidden="true" /> Local only
+        </span>
+        <span>Typed bridge active</span>
+        <span>Ctrl+Shift+F palette</span>
+        <span className="footer-spacer" />
+        <span>Ready</span>
+      </footer>
+      {palette && (
+        <div className="palette-backdrop" onClick={() => setPalette(false)}>
+          <section
+            className="command-palette"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Command palette"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="palette-head">
+              <span>⌘</span>
+              <SearchField
+                label="Command palette"
+                query={query}
+                onQuery={setQuery}
+                onOpenRegex={() => setRegex(!regex)}
+                placeholder="Search commands, features, and settings"
+              />
+              <kbd>ESC</kbd>
+            </div>
+            <div className="palette-section">
+              <small>DESTINATIONS</small>
+              {screenOrder
+                .filter((item) =>
+                  `${labels[item].en} ${labels[item].zh}`
+                    .toLowerCase()
+                    .includes(query.toLowerCase()),
+                )
+                .map((item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    onClick={() => {
+                      navigate(item);
+                      setPalette(false);
+                    }}
+                  >
+                    {localize(labels[item], mode)}
+                    <b>↵</b>
+                  </button>
+                ))}
+            </div>
+          </section>
+        </div>
+      )}
+      {context && (
+        <ContextMenu
+          x={context.x}
+          y={context.y}
+          close={() => setContext(null)}
+          notify={notify}
+        />
+      )}
+      {destructive && (
+        <DestructiveDialog
+          onClose={() => setDestructive(false)}
+          onConfirm={() => {
+            setDestructive(false);
+            notify("Destructive action confirmed locally");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
