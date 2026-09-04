@@ -1,6 +1,9 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import { join } from "node:path";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { BUILD_PROVENANCE } from "../../../packages/core/src/provenance";
+import { parseVocabularyBytes } from "../../../packages/integration/vocabulary-boundary";
 import { resolveRendererEntry } from "./paths";
 
 let mainWindow: BrowserWindow | null = null;
@@ -15,6 +18,27 @@ function registerWindowHandlers(): void {
     window.isMaximized() ? window.unmaximize() : window.maximize();
   });
   ipcMain.on("window:close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+  ipcMain.handle("vocabulary:save", async (_event, bytes: Uint8Array) => {
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength > 256 * 1024) return { loaded: false };
+    if (!safeStorage.isEncryptionAvailable()) return { loaded: false };
+    try {
+      const parsed = parseVocabularyBytes(bytes);
+      const encrypted = safeStorage.encryptString(JSON.stringify(parsed));
+      const root = join(app.getPath("userData"), "private-cache");
+      const target = join(root, "vocabulary.bin");
+      await mkdir(root, { recursive: true });
+      const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+      await writeFile(temporary, encrypted, { flag: "wx" });
+      await rename(temporary, target);
+      return { loaded: true };
+    } catch {
+      return { loaded: false };
+    }
+  });
+  ipcMain.handle("vocabulary:clear", async () => {
+    try { await rm(join(app.getPath("userData"), "private-cache", "vocabulary.bin"), { force: true }); } catch { /* absent cache is already clear */ }
+    return { cleared: true };
+  });
 }
 
 async function createWindow(): Promise<void> {
