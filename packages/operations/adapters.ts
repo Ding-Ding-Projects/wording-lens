@@ -31,6 +31,7 @@ export type AdapterContext = {
   signal?: AbortSignal;
   onProgress?: (event: ProgressEvent) => void;
   verify?: (request: OperationRequest, value: unknown) => Promise<VerificationResult>;
+  resolveHomeAssistantToken?: (baseUrl: string) => Promise<string | undefined>;
   now?: () => Date;
 };
 
@@ -151,6 +152,7 @@ async function runProcess(
   return await new Promise<ProcessResult>((resolveProcess, rejectProcess) => {
     let stdout = '';
     let stderr = '';
+    let outputExceeded = false;
     let settled = false;
     const child = spawn(command, commandArgs, { cwd, env, shell: false, windowsHide: true });
     const finish = (callback: () => void) => {
@@ -170,11 +172,17 @@ async function runProcess(
     options.signal?.addEventListener('abort', abort, { once: true });
     child.stdout?.on('data', (chunk: Buffer | string) => {
       stdout += chunk.toString();
-      if (Buffer.byteLength(stdout) > MAX_OUTPUT_BYTES) child.kill();
+      if (Buffer.byteLength(stdout) > MAX_OUTPUT_BYTES) {
+        outputExceeded = true;
+        child.kill();
+      }
     });
     child.stderr?.on('data', (chunk: Buffer | string) => {
       stderr += chunk.toString();
-      if (Buffer.byteLength(stderr) > MAX_OUTPUT_BYTES) child.kill();
+      if (Buffer.byteLength(stderr) > MAX_OUTPUT_BYTES) {
+        outputExceeded = true;
+        child.kill();
+      }
     });
     child.once('error', (cause: NodeJS.ErrnoException) => {
       clearTimeout(timer);
@@ -183,7 +191,11 @@ async function runProcess(
     child.once('close', (code) => {
       clearTimeout(timer);
       options.signal?.removeEventListener('abort', abort);
-      finish(() => resolveProcess({ code: code ?? 1, stdout: redact(stdout.slice(0, MAX_OUTPUT_BYTES)), stderr: redact(stderr.slice(0, MAX_OUTPUT_BYTES)) }));
+      if (outputExceeded) {
+        finish(() => rejectProcess(Object.assign(new Error('Process output exceeded the bounded output size'), { code: 'OUTPUT_LIMIT', retryable: false })));
+      } else {
+        finish(() => resolveProcess({ code: code ?? 1, stdout: redact(stdout.slice(0, MAX_OUTPUT_BYTES)), stderr: redact(stderr.slice(0, MAX_OUTPUT_BYTES)) }));
+      }
     });
   });
 }
@@ -247,7 +259,7 @@ function commandForDocker(input: DockerCliAction): { executable: AllowedExecutab
     case 'info': return { executable: 'docker', args: ['info', '--format', '{{json .}}'] };
     case 'ps': return { executable: 'docker', args: ['ps', ...(input.all ? ['--all'] : []), '--format', '{{json .}}'] };
     case 'compose-up': return { executable: 'docker', args: ['compose', 'up', '--detach', ...(input.services ?? []).map((service) => safeString(service, 'service'))], cwd: safePath(input.cwd, 'compose path') };
-    case 'compose-down': return { executable: 'docker', args: ['compose', 'down', ...(input.services ?? []).map((service) => safeString(service, 'service'))], cwd: safePath(input.cwd, 'compose path') };
+    case 'compose-down': return { executable: 'docker', args: ['compose', 'down'], cwd: safePath(input.cwd, 'compose path') };
   }
 }
 
@@ -332,8 +344,10 @@ async function executeOllama(input: OllamaHttpAction, request: OperationRequest,
 async function executeHomeAssistant(input: HomeAssistantHttpAction, request: OperationRequest, context: AdapterContext): Promise<unknown> {
   const base = validateLocalUrl(input.baseUrl, 'home-assistant');
   if (!/^[a-z0-9_]+\.[a-z0-9_]+$/u.test(safeString(input.entityId, 'entity ID'))) throw new Error('Entity ID must use the domain.name form');
+  const token = await context.resolveHomeAssistantToken?.(input.baseUrl);
+  if (!token) throw Object.assign(new Error('Home Assistant credential resolver did not supply a token'), { code: 'not-allowed', retryable: false });
   const url = new URL(`/api/states/${encodeURIComponent(input.entityId)}`, base);
-  return await fetchJson(url, { method: 'GET', timeoutMs: timeoutFor(request), signal: context.signal });
+  return await fetchJson(url, { method: 'GET', headers: { authorization: `Bearer ${safeString(token, 'credential')}` }, timeoutMs: timeoutFor(request), signal: context.signal });
 }
 
 async function executeFile(input: FileAction, request: OperationRequest, context: AdapterContext): Promise<unknown> {
@@ -391,7 +405,8 @@ function classification(request: OperationRequest): DestructiveClass {
   if (request.kind === 'docker-cli' && request.input.action === 'compose-down') return 'destructive';
   if (request.kind === 'git' && ['commit', 'push', 'pull-fast-forward'].includes(request.input.action)) return 'mutating';
   if (request.kind === 'build' && ['package', 'install'].includes(request.input.task)) return 'mutating';
-  if (request.kind === 'file' && ['write', 'copy'].includes(request.input.action)) return 'mutating';
+  if (request.kind === 'file' && request.input.action === 'write') return request.input.overwrite === false ? 'mutating' : 'destructive';
+  if (request.kind === 'file' && request.input.action === 'copy') return request.input.overwrite === false ? 'mutating' : 'destructive';
   if (request.kind === 'docker-cli' && request.input.action === 'compose-up') return 'mutating';
   if (request.kind === 'ollama-http' && request.input.action === 'pull') return 'mutating';
   return 'safe';
@@ -462,6 +477,6 @@ export async function executeOperation(request: OperationRequest, context: Adapt
     const code = typeof cause === 'object' && cause !== null && 'code' in cause ? String((cause as { code: unknown }).code) : '';
     const cancelled = code === 'ABORT_ERR' || context.signal?.aborted;
     const retryable = typeof cause === 'object' && cause !== null && 'retryable' in cause ? Boolean((cause as { retryable: unknown }).retryable) : DEFAULT_RETRY_POLICY.retryableCodes?.includes(code) ?? false;
-    return { operationId: id, status: cancelled ? 'cancelled' : 'failed', error: error(cancelled ? 'cancelled' : code.startsWith('HTTP_') ? 'transport' : code === 'not-allowed' ? 'not-allowed' : code === 'ETIMEDOUT' ? 'timeout' : 'unknown', redact(cause instanceof Error ? cause.message : 'Operation failed'), retryable), startedAt, finishedAt: timestamp(context), attempts: 1 };
+    return { operationId: id, status: cancelled ? 'cancelled' : 'failed', error: error(cancelled ? 'cancelled' : code === 'OUTPUT_LIMIT' ? 'output-limit' : code.startsWith('HTTP_') ? 'transport' : code === 'not-allowed' ? 'not-allowed' : code === 'ETIMEDOUT' ? 'timeout' : 'unknown', redact(cause instanceof Error ? cause.message : 'Operation failed'), retryable), startedAt, finishedAt: timestamp(context), attempts: 1 };
   }
 }

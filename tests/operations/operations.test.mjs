@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -20,7 +21,7 @@ test('writes and reads a temporary file, then deletes only with confirmation', a
   const root = await mkdtemp(join(tmpdir(), 'wording-lens-operations-'));
   const path = join(root, 'nested', 'value.txt');
   try {
-    const write = await operations.executeOperation({ kind: 'file', input: { action: 'write', path, content: 'hello' } });
+    const write = await operations.executeOperation({ kind: 'file', input: { action: 'write', path, content: 'hello', overwrite: false } });
     assert.equal(write.status, 'succeeded');
     const read = await operations.executeOperation({ kind: 'file', input: { action: 'read', path } });
     assert.equal(read.value, 'hello');
@@ -55,21 +56,59 @@ test('uses only loopback HTTP for Ollama and rejects embedded credentials', asyn
   }
 });
 
-test('Home Assistant requires a valid entity id and refuses redirects', async () => {
-  const originalFetch = globalThis.fetch;
-  let requestInit;
-  globalThis.fetch = async (_url, init) => {
-    requestInit = init;
-    return new Response(JSON.stringify({ entity_id: 'input_boolean.example', state: 'on' }), { status: 200 });
-  };
+test('Home Assistant resolves its credential in memory and sends it only as an Authorization header', async () => {
+  const server = createServer((request, response) => {
+    if (request.url?.endsWith('/input_boolean.redirect')) {
+      response.writeHead(302, { location: '/api/states/input_boolean.example' });
+      response.end();
+      return;
+    }
+    assert.equal(request.headers.authorization, 'Bearer in-memory-test-value');
+    assert.equal(request.url, '/api/states/input_boolean.example');
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ entity_id: 'input_boolean.example', state: 'on' }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
   try {
-    const result = await operations.executeOperation({ kind: 'home-assistant-http', input: { action: 'get-state', baseUrl: 'https://ha.example.test', entityId: 'input_boolean.example' } });
+    const result = await operations.executeOperation(
+      { kind: 'home-assistant-http', input: { action: 'get-state', baseUrl, entityId: 'input_boolean.example' } },
+      { resolveHomeAssistantToken: async () => 'in-memory-test-value' },
+    );
     assert.equal(result.status, 'succeeded');
-    assert.equal(requestInit.redirect, 'error');
-    const rejected = await operations.executeOperation({ kind: 'home-assistant-http', input: { action: 'get-state', baseUrl: 'https://ha.example.test', entityId: 'not-an-entity' } });
-    assert.equal(rejected.status, 'failed');
+    const redirected = await operations.executeOperation(
+      { kind: 'home-assistant-http', input: { action: 'get-state', baseUrl, entityId: 'input_boolean.redirect' } },
+      { resolveHomeAssistantToken: async () => 'in-memory-test-value' },
+    );
+    assert.equal(redirected.status, 'failed');
+    const missingResolver = await operations.executeOperation({ kind: 'home-assistant-http', input: { action: 'get-state', baseUrl, entityId: 'input_boolean.example' } });
+    assert.equal(missingResolver.status, 'failed');
+    assert.equal(missingResolver.error.code, 'not-allowed');
   } finally {
-    globalThis.fetch = originalFetch;
+    await new Promise((resolve, reject) => server.close((cause) => cause ? reject(cause) : resolve()));
+  }
+});
+
+test('writes and copies with overwrite enabled are destructive and require explicit confirmation', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'wording-lens-overwrite-'));
+  const source = join(root, 'source.txt');
+  const destination = join(root, 'destination.txt');
+  try {
+    const writePreview = operations.previewOperation({ kind: 'file', input: { action: 'write', path: destination, content: 'replace me' } });
+    assert.equal(writePreview.destructive, 'destructive');
+    const refusedWrite = await operations.executeOperation({ kind: 'file', input: { action: 'write', path: destination, content: 'replace me' } });
+    assert.equal(refusedWrite.error.code, 'not-allowed');
+    const firstWrite = await operations.executeOperation({ kind: 'file', input: { action: 'write', path: destination, content: 'original', overwrite: false } });
+    assert.equal(firstWrite.status, 'succeeded');
+    const overwrite = await operations.executeOperation({ kind: 'file', input: { action: 'write', path: destination, content: 'updated' }, confirmation: { firstKey: 'one', secondKey: 'two', sliderComplete: true } });
+    assert.equal(overwrite.status, 'succeeded');
+    const copyPreview = operations.previewOperation({ kind: 'file', input: { action: 'copy', source, destination } });
+    assert.equal(copyPreview.destructive, 'destructive');
+    const refusedCopy = await operations.executeOperation({ kind: 'file', input: { action: 'copy', source, destination } });
+    assert.equal(refusedCopy.error.code, 'not-allowed');
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

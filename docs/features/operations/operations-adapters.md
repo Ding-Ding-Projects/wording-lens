@@ -13,7 +13,8 @@ The adapter registry covers:
 - GitHub CLI repository, run, release, and issue inventory reads.
 - Docker CLI information, container inventory, and Compose start or stop.
 - Ollama local HTTP health, version, tags, model inspection, and pull streams.
-- Home Assistant HTTPS state reads for validated boolean-entity identifiers.
+- Home Assistant HTTPS state reads for validated boolean-entity identifiers,
+  using a host-supplied in-memory credential resolver.
 - Bounded file read, write, copy, move, and delete actions.
 - Allowlisted process execution with an argument array and no shell.
 - Build tasks for the supported package and build tools.
@@ -24,13 +25,17 @@ schemas. `packages/operations/adapters.ts` constructs the fixed argument lists,
 validates paths and URLs, bounds output, applies timeouts, supports cancellation,
 and redacts sensitive-looking process output. HTTP redirects and embedded URL
 credentials are rejected. Ollama allows only HTTPS or bounded loopback HTTP;
-Home Assistant follows the same transport rule.
+Home Assistant follows the same transport rule. Home Assistant requests do not
+carry a token field. A host callback resolves the token for one request, the
+adapter uses it only in an `Authorization` header, and the queue never sees or
+serializes that value.
 
 ## Guided preview and destructive actions
 
 `previewOperation` returns the adapter kind, summary, affected values, warnings,
 and destructive classification. Reads are safe, writes and service changes are
-mutating, and file deletion, file moves, and Compose stop are destructive. A
+mutating, and file deletion, file moves, overwrite-enabled file writes or
+copies, and Compose stop are destructive. A
 destructive request is refused unless the caller supplies two different
 non-empty confirmation keys and marks the full-range confirmation slider as
 complete. The adapter never treats a preview as execution.
@@ -72,11 +77,16 @@ target value.
   must be recovered from an application-managed backup rather than silently
   discarded.
 - A missing executable, invalid path, unsafe URL, refused redirect, malformed
-  response, non-zero process exit, cancelled operation, or failed verifier is
-  surfaced with a typed result and no guessed success.
+  response, non-zero process exit, cancelled operation, failed verifier, or
+  process output beyond the bounded limit is surfaced with a typed result and
+  no guessed success. Output-limit termination is reported as
+  `output-limit`, not as an ordinary process exit.
 - Build and editor actions use allowlisted tool identities and arrays of
   arguments. Shell evaluation flags such as `-c`, `/c`, and `--eval` are
   rejected.
+- `docker compose down` is emitted without service arguments because Compose
+  down operates on the project as a whole. Service selection is not presented
+  for that action.
 
 ## Verification
 

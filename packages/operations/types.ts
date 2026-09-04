@@ -66,6 +66,7 @@ export type OperationError = {
     | 'timeout'
     | 'cancelled'
     | 'transport'
+    | 'output-limit'
     | 'process'
     | 'verification'
     | 'persistence'
@@ -113,7 +114,7 @@ export type DockerCliAction =
   | { action: 'info' }
   | { action: 'ps'; all?: boolean }
   | { action: 'compose-up'; cwd: string; services?: readonly string[] }
-  | { action: 'compose-down'; cwd: string; services?: readonly string[] };
+  | { action: 'compose-down'; cwd: string };
 
 export type OllamaHttpAction =
   | { action: 'health'; baseUrl: string }
