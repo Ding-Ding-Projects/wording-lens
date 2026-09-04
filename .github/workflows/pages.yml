@@ -3,7 +3,6 @@ name: Build and deploy documentation site
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +11,6 @@ permissions:
 
 concurrency:
   group: pages-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -41,7 +39,7 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload Pages lap saps
+      - name: Upload Pages artifacts
         uses: actions/upload-pages-artifact@v3
         with:
           path: apps/site/dist/client
