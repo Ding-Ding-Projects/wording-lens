@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Primary desktop design reference for the Wording Lens local-first operations cockpit.">
+  <title>Wording Lens Operations Cockpit Reference</title>
+  <style>
+:root {--bg: oklch(0.145 0.012 240); --surface: oklch(0.19 0.014 240); --surface-2: oklch(0.225 0.016 238); --surface-3: oklch(0.265 0.019 235); --fg: oklch(0.945 0.014 210); --muted: oklch(0.72 0.025 220); --border: oklch(0.35 0.022 232); --border-strong: oklch(0.45 0.028 228); --accent: oklch(0.84 0.15 210); --accent-ink: oklch(0.17 0.025 225); --accent-soft: oklch(0.31 0.055 218); --mint: oklch(0.84 0.135 160); --mint-soft: oklch(0.28 0.042 162); --amber: oklch(0.82 0.13 82); --amber-soft: oklch(0.28 0.04 82); --danger: oklch(0.72 0.18 25); --shadow: 0 18px 50px oklch(0.05 0.01 240 / 0.42); --radius-sm: 10px; --radius-md: 16px; --radius-lg: 24px; --target: 48px; --display: Bahnschrift, "Aptos Display", "Segoe UI Variable Display", sans-serif; --body: "Segoe UI Variable Text", "Segoe UI", sans-serif; --mono: "Cascadia Mono", Consolas, monospace;}
+* {box-sizing: border-box;}
+html, body {margin: 0; min-width: 0; min-height: 100%; background: var(--bg); color: var(--fg); font-family: var(--body);}
+body {overflow: hidden;}
+button, input {font: inherit;}
+button {color: inherit;}
+button, [role="button"], input {min-height: var(--target);}
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible {outline: 3px solid var(--accent); outline-offset: 2px;}
+.icon-sprite {position: absolute; width: 0; height: 0; overflow: hidden;}
+.icon {width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;}
+.app-frame {width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg);}
+.titlebar {height: 56px; display: grid; grid-template-columns: 240px minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--border); background: var(--surface); user-select: none;}
+.titlebar-brand {height: 100%; display: flex; align-items: center; gap: 12px; padding: 0 16px; min-width: 0; -webkit-app-region: drag;}
+.lens-mark {position: relative; width: 30px; height: 30px; flex: 0 0 auto; border: 2px solid var(--accent); border-radius: 50%;}
+.lens-mark::before, .lens-mark::after {content: ""; position: absolute; border-radius: 50%;}
+.lens-mark::before {inset: 6px; background: var(--mint);}
+.lens-mark::after {width: 10px; height: 2px; right: -7px; bottom: 1px; background: var(--accent); transform: rotate(45deg); transform-origin: left center;}
+.product-name {min-width: 0; font-family: var(--display); font-size: 17px; font-weight: 650; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+.titlebar-context {display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--muted); font-size: 13px; -webkit-app-region: drag;}
+.local-badge {display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in oklch, var(--mint) 35%, var(--border)); border-radius: 999px; background: var(--mint-soft); color: var(--mint); font-weight: 650;}
+.status-dot {width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px color-mix(in oklch, currentColor 15%, transparent);}
+.window-actions {display: flex; align-self: stretch; -webkit-app-region: no-drag;}
+.window-button {width: 48px; min-height: 48px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer;}
+.window-button:hover {background: var(--surface-3);}
+.window-button.close:hover {background: var(--danger); color: var(--bg);}
+.app-layout {height: calc(100% - 56px); display: grid; grid-template-columns: 240px minmax(0, 1fr); min-width: 0;}
+.tab-rail {display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 14px 12px; border-right: 1px solid var(--border); background: var(--surface);}
+.palette-trigger {width: 100%; min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); cursor: pointer; text-align: left;}
+.palette-trigger:hover {background: var(--surface-3); border-color: var(--muted);}
+.palette-trigger .label {min-width: 0; flex: 1; font-weight: 650;}
+kbd {min-width: 28px; padding: 4px 7px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--bg); color: var(--muted); font-family: var(--mono); font-size: 11px; text-align: center; box-shadow: inset 0 -1px 0 var(--border);}
+.tab-list {display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 6px;}
+.nav-tab {width: 100%; min-height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border: 1px solid transparent; border-radius: 14px; background: transparent; color: var(--muted); cursor: pointer; text-align: left; font-weight: 620;}
+.nav-tab:hover {background: var(--surface-2); color: var(--fg);}
+.nav-tab[aria-selected="true"] {border-color: color-mix(in oklch, var(--accent) 38%, var(--border)); background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 12%, transparent);}
+.nav-tab.settings {margin-top: auto;}
+.tab-label {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.rail-footer {padding: 12px 10px 2px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.5;}
+.rail-footer strong {display: flex; align-items: center; gap: 8px; margin-bottom: 4px; color: var(--mint); font-size: 12px;}
+.workspace {min-width: 0; overflow: auto; padding: 24px; scrollbar-color: var(--border-strong) transparent;}
+.screen-panel {max-width: 1480px; margin: 0 auto;}
+.screen-panel[hidden] {display: none;}
+.workspace-header {display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px;}
+.eyebrow {display: flex; align-items: center; gap: 9px; margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase;}
+.eyebrow::before {content: ""; width: 24px; height: 2px; border-radius: 2px; background: var(--accent);}
+h1, h2, h3, p {margin-top: 0;}
+h1 {margin-bottom: 4px; font-family: var(--display); font-size: clamp(30px, 3vw, 38px); line-height: 1.08; letter-spacing: -0.02em;}
+h2 {margin-bottom: 4px; font-family: var(--display); font-size: 20px; letter-spacing: -0.01em;}
+h3 {margin-bottom: 4px; font-size: 15px;}
+.lede, .subtle {color: var(--muted); line-height: 1.55;}
+.lede {max-width: 62ch; margin-bottom: 0; font-size: 15px;}
+.header-actions, .card-actions, .filter-group, .button-row {display: flex; align-items: center; flex-wrap: wrap; gap: 8px;}
+.button {min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 16px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); color: var(--fg); cursor: pointer; font-weight: 680; white-space: nowrap;}
+.button:hover {background: var(--surface-3); border-color: var(--muted);}
+.button.primary {border-color: var(--accent); background: var(--accent); color: var(--accent-ink);}
+.button.primary:hover {border-color: var(--fg); background: var(--fg); color: var(--bg);}
+.button.text {min-height: 48px; padding-inline: 10px; border-color: transparent; background: transparent; color: var(--accent);}
+.button.text:hover {background: var(--accent-soft); color: var(--fg);}
+.button:disabled {cursor: not-allowed; opacity: 0.45;}
+.provenance-panel {display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); align-items: center; gap: 18px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: 0 8px 24px oklch(0.05 0.01 240 / 0.18);}
+.preview-badge, .status-chip {display: inline-flex; min-height: 30px; align-items: center; justify-content: center; gap: 7px; width: fit-content; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 780; letter-spacing: 0.05em; text-transform: uppercase;}
+.preview-badge {border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--muted);}
+.provenance-item {min-width: 0;}
+.provenance-item span {display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;}
+.provenance-item strong {display: block; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; font-weight: 600;}
+.metrics-grid {display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px;}
+.metric-card, .card {border: 1px solid var(--border); background: var(--surface);}
+.metric-card {min-width: 0; padding: 16px; border-radius: var(--radius-md);}
+.metric-card .metric-label {display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--muted); font-size: 13px; font-weight: 650;}
+.metric-card strong {display: block; margin-bottom: 4px; font-family: var(--display); font-size: 30px; font-weight: 680; line-height: 1;}
+.metric-card p {margin-bottom: 0; color: var(--muted); font-size: 12px;}
+.metric-glyph {width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-3); color: var(--mint);}
+.dashboard-grid {display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.88fr); gap: 16px; align-items: start;}
+.main-column, .context-column {display: grid; gap: 16px; min-width: 0;}
+.lower-grid {grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 16px; min-width: 0;}
+.card {min-width: 0; border-radius: var(--radius-lg); overflow: hidden;}
+.card-header {display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 14px;}
+.card-header p {margin-bottom: 0; color: var(--muted); font-size: 13px; line-height: 1.5;}
+.card-body {padding: 0 20px 20px;}
+.filter-button {min-height: 48px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 700;}
+.filter-button:hover {background: var(--surface-2); color: var(--fg);}
+.filter-button[aria-pressed="true"] {border-color: var(--border-strong); background: var(--surface-3); color: var(--fg);}
+.queue-list {display: grid; gap: 8px;}
+.queue-head, .queue-row {display: grid; grid-template-columns: minmax(170px, 1.45fr) minmax(110px, 0.7fr) minmax(150px, 1fr) auto; align-items: center; gap: 14px;}
+.queue-head {min-height: 38px; padding: 0 12px; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase;}
+.queue-row {min-height: 72px; padding: 11px 12px; border: 1px solid transparent; border-radius: 14px; background: var(--surface-2);}
+.queue-row:hover {border-color: var(--border-strong); background: var(--surface-3);}
+.queue-title {min-width: 0;}
+.queue-title strong, .queue-title span {display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.queue-title strong {margin-bottom: 4px; font-size: 14px;}
+.queue-title span {color: var(--muted); font-size: 12px;}
+.status-chip {min-height: 28px; text-transform: none; letter-spacing: 0;}
+.status-chip.running, .status-chip.ready, .status-chip.current {border: 1px solid color-mix(in oklch, var(--mint) 35%, var(--border)); background: var(--mint-soft); color: var(--mint);}
+.status-chip.waiting, .status-chip.review, .status-chip.paused {border: 1px solid color-mix(in oklch, var(--amber) 32%, var(--border)); background: var(--amber-soft); color: var(--amber);}
+.progress-block {min-width: 0;}
+.progress-label {display: flex; justify-content: space-between; gap: 8px; margin-bottom: 7px; color: var(--muted); font-size: 11px;}
+.progress-track {height: 8px; overflow: hidden; border-radius: 999px; background: var(--bg);}
+.progress-fill {width: var(--progress, 0%); height: 100%; border-radius: inherit; background: var(--mint); transition: width 180ms ease;}
+.row-action {min-width: 82px; min-height: 48px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 12px; background: transparent; cursor: pointer; font-size: 12px; font-weight: 700;}
+.row-action:hover {background: var(--surface-2); border-color: var(--muted);}
+.import-zone {display: grid; place-items: center; min-height: 156px; padding: 20px; border: 1px dashed var(--border-strong); border-radius: 16px; background: var(--surface-2); text-align: center; transition: border-color 160ms ease, background 160ms ease;}
+.import-zone.dragging {border-color: var(--accent); background: var(--accent-soft);}
+.import-zone .import-icon {width: 42px; height: 42px; display: grid; place-items: center; margin-bottom: 10px; border-radius: 14px; background: var(--surface-3); color: var(--accent);}
+.import-zone p {max-width: 34ch; margin: 4px auto 14px; color: var(--muted); font-size: 12px; line-height: 1.5;}
+.hidden-input {position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;}
+.setting-list {display: grid; gap: 2px;}
+.setting-row {min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border);}
+.setting-row:last-child {border-bottom: 0;}
+.setting-copy {min-width: 0;}
+.setting-copy strong {display: block; margin-bottom: 3px; font-size: 13px;}
+.setting-copy span {display: block; color: var(--muted); font-size: 11px; line-height: 1.4;}
+.switch {position: relative; width: 60px; min-width: 60px; min-height: 48px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg); cursor: pointer;}
+.switch::after {content: ""; position: absolute; top: 10px; left: 7px; width: 26px; height: 26px; border-radius: 50%; background: var(--muted); transition: transform 160ms ease, background 160ms ease;}
+.switch[aria-checked="true"] {border-color: var(--mint); background: var(--mint-soft);}
+.switch[aria-checked="true"]::after {background: var(--mint); transform: translateX(19px);}
+.adapter-list, .evidence-list {display: grid; gap: 8px;}
+.adapter-row, .evidence-row {min-height: 64px; display: grid; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: 14px; background: var(--surface-2); text-align: left;}
+.adapter-row {grid-template-columns: auto minmax(0, 1fr) auto auto; cursor: pointer;}
+.adapter-row:hover, .evidence-row:hover {border-color: var(--border-strong); background: var(--surface-3);}
+.adapter-mark, .evidence-mark {width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: var(--bg); color: var(--mint);}
+.adapter-copy, .evidence-copy {min-width: 0;}
+.adapter-copy strong, .adapter-copy span, .evidence-copy strong, .evidence-copy span {display: block;}
+.adapter-copy span, .evidence-copy span {margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.4;}
+.adapter-detail {margin: -2px 8px 4px; padding: 12px 14px; border-left: 2px solid var(--border-strong); color: var(--muted); font-size: 12px; line-height: 1.5;}
+.evidence-row {grid-template-columns: auto minmax(0, 1fr) auto;}
+.focused-panel-grid {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;}
+.focused-panel-grid .wide {grid-column: 1 / -1;}
+.search-field {position: relative; min-width: min(100%, 300px); flex: 1;}
+.search-field .icon {position: absolute; left: 14px; top: 14px; color: var(--muted); pointer-events: none;}
+.search-field input {width: 100%; padding: 0 14px 0 44px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); color: var(--fg);}
+.search-field input::placeholder {color: var(--muted);}
+.adapter-card {padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface);}
+.adapter-card-head {display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px;}
+.adapter-card dl {display: grid; grid-template-columns: 1fr auto; gap: 10px 14px; margin: 0; font-size: 12px;}
+.adapter-card dt {color: var(--muted);}
+.adapter-card dd {margin: 0; font-family: var(--mono); text-align: right;}
+.timeline {display: grid; gap: 10px;}
+.timeline-item {display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);}
+.timeline-item:last-child {border-bottom: 0;}
+.timeline-dot {width: 10px; height: 10px; margin-top: 4px; border: 2px solid var(--mint); border-radius: 50%; background: var(--surface);}
+.timeline-item strong, .timeline-item span {display: block;}
+.timeline-item span {margin-top: 4px; color: var(--muted); font-size: 12px;}
+.segmented {display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg);}
+.segment {min-height: 48px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 700;}
+.segment:hover {background: var(--surface-2); color: var(--fg);}
+.segment[aria-pressed="true"] {border-color: var(--border-strong); background: var(--surface-3); color: var(--fg);}
+dialog {width: min(620px, calc(100vw - 32px)); max-height: min(760px, calc(100vh - 32px)); overflow: auto; padding: 0; border: 1px solid var(--border-strong); border-radius: 24px; background: var(--surface); color: var(--fg); box-shadow: var(--shadow);}
+dialog::backdrop {background: oklch(0.05 0.01 240 / 0.72); backdrop-filter: blur(4px);}
+.dialog-header, .dialog-footer {display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px;}
+.dialog-header {border-bottom: 1px solid var(--border);}
+.dialog-footer {justify-content: flex-end; border-top: 1px solid var(--border);}
+.dialog-body {padding: 20px;}
+.icon-button {width: 48px; min-width: 48px; min-height: 48px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 14px; background: transparent; cursor: pointer;}
+.icon-button:hover {border-color: var(--border); background: var(--surface-2);}
+.command-list {display: grid; gap: 6px; margin-top: 14px;}
+.command-item {width: 100%; min-height: 56px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid transparent; border-radius: 14px; background: transparent; color: var(--fg); cursor: pointer; text-align: left;}
+.command-item:hover {border-color: var(--border); background: var(--surface-2);}
+.command-item[hidden] {display: none;}
+.command-item span {display: block;}
+.command-item small {display: block; margin-top: 3px; color: var(--muted);}
+.form-field {display: grid; gap: 8px; margin-bottom: 18px;}
+.form-field > label, .form-field > .field-label {font-size: 13px; font-weight: 720;}
+.form-field input[type="text"] {width: 100%; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); color: var(--fg);}
+.helper {color: var(--muted); font-size: 11px; line-height: 1.45;}
+.toast-region {position: fixed; right: 20px; bottom: 20px; z-index: 20; display: grid; gap: 8px; width: min(380px, calc(100vw - 40px)); pointer-events: none;}
+.toast {padding: 14px 16px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-3); box-shadow: var(--shadow); color: var(--fg); font-size: 13px; line-height: 1.45; animation: toast-in 180ms ease both;}
+@keyframes toast-in {from {opacity: 0; transform: translateY(8px);}
+to {opacity: 1; transform: translateY(0);}
+}
+body.compact .card-header {padding-block: 14px 10px;}
+body.compact .card-body {padding-bottom: 14px;}
+body.contrast-boost {--muted: oklch(0.82 0.018 220); --border: oklch(0.48 0.02 232); --border-strong: oklch(0.62 0.024 228);}
+body.bilingual-spacing {letter-spacing: 0.012em;}
+body.bilingual-spacing .card, body.bilingual-spacing .queue-row {line-height: 1.65;}
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.001ms !important;}
+@media (prefers-reduced-motion: reduce) {*, *::before, *::after {animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.001ms !important;}
+}
+@media (max-width: 1080px) {.metrics-grid {grid-template-columns: repeat(2, minmax(0, 1fr));}
+.dashboard-grid, .lower-grid {grid-template-columns: 1fr;}
+.lower-grid {grid-column: auto;}
+}
+@media (max-width: 700px) {body {overflow: hidden;}
+.titlebar {grid-template-columns: minmax(0, 1fr) auto;}
+.titlebar-context {display: none;}
+.titlebar-brand {padding-inline: 12px 8px;}
+.app-layout {display: flex; flex-direction: column;}
+.tab-rail {position: relative; z-index: 3; height: 66px; flex: 0 0 66px; flex-direction: row; align-items: center; gap: 8px; padding: 7px 8px; border-right: 0; border-bottom: 1px solid var(--border);}
+.palette-trigger {width: 50px; min-width: 50px; height: 50px; padding: 0; justify-content: center;}
+.palette-trigger .label, .palette-trigger kbd, .rail-footer, .tab-label {display: none;}
+.tab-list {flex: 1; flex-direction: row; gap: 4px; overflow-x: auto; scrollbar-width: none;}
+.tab-list::-webkit-scrollbar {display: none;}
+.nav-tab {width: 50px; min-width: 50px; height: 50px; padding: 0; justify-content: center;}
+.nav-tab.settings {margin-top: 0;}
+.workspace {flex: 1; padding: 16px;}
+.workspace-header {display: grid; gap: 16px;}
+.header-actions {width: 100%;}
+.header-actions .button {flex: 1;}
+.provenance-panel {grid-template-columns: 1fr; gap: 12px;}
+.provenance-item {padding-top: 10px; border-top: 1px solid var(--border);}
+.focused-panel-grid {grid-template-columns: 1fr;}
+.focused-panel-grid .wide {grid-column: auto;}
+.queue-head {display: none;}
+.queue-row {grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title status" "progress progress" "action action"; gap: 12px; padding: 14px;}
+.queue-title {grid-area: title;}
+.queue-row .status-chip {grid-area: status;}
+.queue-row .progress-block {grid-area: progress;}
+.queue-row .row-action {grid-area: action; width: 100%;}
+.card-header {display: grid;}
+.filter-group {width: 100%;}
+.filter-button {flex: 1;}
+.adapter-row {grid-template-columns: auto minmax(0, 1fr) auto;}
+.adapter-row .icon:last-child {display: none;}
+.evidence-row {grid-template-columns: auto minmax(0, 1fr);}
+.evidence-row .button {grid-column: 1 / -1; width: 100%;}
+.toast-region {right: 12px; bottom: 12px; width: calc(100vw - 24px);}
+}
+@media (max-width: 430px) {.product-name {font-size: 15px;}
+.lens-mark {width: 26px; height: 26px;}
+.metrics-grid {grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;}
+.metric-card {padding: 14px;}
+.metric-card strong {font-size: 26px;}
+.workspace {padding: 14px 12px 22px;}
+.card-body, .dialog-body {padding-inline: 16px;}
+.card-header, .dialog-header, .dialog-footer {padding-inline: 16px;}
+}
+</style>
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M8 12h8M9 4v5M15 4v5M7 9h10v3a5 5 0 0 1-5 5v3"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><path d="M19 13.5v-3l-2-.6a7 7 0 0 0-.7-1.6l1-1.9-2.1-2.1-1.9 1a7 7 0 0 0-1.6-.7L11 2H8l-.6 2.6a7 7 0 0 0-1.6.7l-1.9-1-2.1 2.1 1 1.9a7 7 0 0 0-.7 1.6L0 10.5v3l2.1.6a7 7 0 0 0 .7 1.6l-1 1.9 2.1 2.1 1.9-1a7 7 0 0 0 1.6.7L8 22h3l.6-2.6a7 7 0 0 0 1.6-.7l1.9 1 2.1-2.1-1-1.9a7 7 0 0 0 .7-1.6z" transform="translate(1) scale(.92)"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
+    <symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v6h14v-6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+    <symbol id="i-square" viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 8a8 8 0 1 0 1 6M19 4v4h-4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
+  </svg>
+
+  <div class="app-frame" data-od-id="wording-lens-app-frame">
+    <header class="titlebar" data-od-id="frameless-title-bar">
+      <div class="titlebar-brand" data-od-id="app-title">
+        <span class="lens-mark" aria-hidden="true"></span>
+        <span class="product-name">Wording Lens</span>
+      </div>
+      <div class="titlebar-context" data-od-id="title-bar-status">
+        <span class="local-badge"><span class="status-dot"></span>Local processing</span>
+        <span>Operations cockpit</span>
+      </div>
+      <div class="window-actions" aria-label="Window controls">
+        <button class="window-button" type="button" aria-label="Minimize window" data-window-action="minimize" data-od-id="window-minimize"><svg class="icon"><use href="#i-minus"/></svg></button>
+        <button class="window-button" type="button" aria-label="Maximize window" data-window-action="maximize" data-od-id="window-maximize"><svg class="icon"><use href="#i-square"/></svg></button>
+        <button class="window-button close" type="button" aria-label="Close window" data-window-action="close" data-od-id="window-close"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <aside class="tab-rail" data-od-id="left-docked-tab-rail">
+        <button class="palette-trigger" type="button" data-open-palette data-od-id="command-palette-affordance" aria-label="Open command palette, Control Shift F">
+          <svg class="icon"><use href="#i-search"/></svg>
+          <span class="label">Find a command</span>
+          <kbd>Ctrl Shift F</kbd>
+        </button>
+
+        <nav class="tab-list" role="tablist" aria-label="Workspace tabs" aria-orientation="vertical">
+          <button class="nav-tab" role="tab" type="button" aria-selected="true" aria-controls="panel-operations" id="tab-operations" data-panel-target="operations" data-od-id="tab-operations">
+            <svg class="icon"><use href="#i-grid"/></svg><span class="tab-label">Operations</span>
+          </button>
+          <button class="nav-tab" role="tab" type="button" aria-selected="false" aria-controls="panel-queue" id="tab-queue" data-panel-target="queue" data-od-id="tab-queue">
+            <svg class="icon"><use href="#i-list"/></svg><span class="tab-label">Queue</span>
+          </button>
+          <button class="nav-tab" role="tab" type="button" aria-selected="false" aria-controls="panel-adapters" id="tab-adapters" data-panel-target="adapters" data-od-id="tab-adapters">
+            <svg class="icon"><use href="#i-plug"/></svg><span class="tab-label">Adapters</span>
+          </button>
+          <button class="nav-tab" role="tab" type="button" aria-selected="false" aria-controls="panel-evidence" id="tab-evidence" data-panel-target="evidence" data-od-id="tab-evidence">
+            <svg class="icon"><use href="#i-file"/></svg><span class="tab-label">Evidence</span>
+          </button>
+          <button class="nav-tab settings" role="tab" type="button" aria-selected="false" aria-controls="panel-settings" id="tab-settings" data-panel-target="settings" data-od-id="tab-settings">
+            <svg class="icon"><use href="#i-settings"/></svg><span class="tab-label">Settings</span>
+          </button>
+        </nav>
+
+        <div class="rail-footer" data-od-id="local-only-rail-status">
+          <strong><span class="status-dot"></span>Device-only session</strong>
+          <span>No network connection is required for the reference workflow.</span>
+        </div>
+      </aside>
+
+      <main class="workspace" data-od-id="workspace">
+        <section class="screen-panel" id="panel-operations" role="tabpanel" aria-labelledby="tab-operations" data-panel="operations" data-od-id="operations-dashboard">
+          <div class="workspace-header">
+            <div>
+              <p class="eyebrow">Primary workspace</p>
+              <h1 data-od-id="operations-heading">Operations overview</h1>
+              <p class="lede">Review local processing, inspect the queue, and follow evidence from one restrained workspace.</p>
+            </div>
+            <div class="header-actions">
+              <button class="button primary" type="button" data-open-operation data-od-id="new-operation-cta"><svg class="icon"><use href="#i-add"/></svg>New operation</button>
+            </div>
+          </div>
+
+          <section class="provenance-panel" aria-label="Reference provenance" data-od-id="front-screen-provenance">
+            <span class="preview-badge">Reference fixture</span>
+            <div class="provenance-item">
+              <span>Reference version</span>
+              <strong>1.0.0</strong>
+            </div>
+            <div class="provenance-item">
+              <span>Updated at</span>
+              <strong>2026-09-04 13:42:28 EDT</strong>
+            </div>
+            <div class="provenance-item">
+              <span>Provenance</span>
+              <strong>This HTML revision</strong>
+            </div>
+          </section>
+
+          <section class="metrics-grid" aria-label="Operations summary" data-od-id="operations-summary">
+            <article class="metric-card" data-od-id="metric-running">
+              <div class="metric-label"><span>Running</span><span class="metric-glyph"><svg class="icon"><use href="#i-refresh"/></svg></span></div>
+              <strong data-running-count>2</strong>
+              <p>Reference queue data</p>
+            </article>
+            <article class="metric-card" data-od-id="metric-waiting">
+              <div class="metric-label"><span>Waiting</span><span class="metric-glyph"><svg class="icon"><use href="#i-clock"/></svg></span></div>
+              <strong data-waiting-count>1</strong>
+              <p>Reference queue data</p>
+            </article>
+            <article class="metric-card" data-od-id="metric-adapters">
+              <div class="metric-label"><span>Adapters ready</span><span class="metric-glyph"><svg class="icon"><use href="#i-plug"/></svg></span></div>
+              <strong>6 of 7</strong>
+              <p>One review state shown</p>
+            </article>
+            <article class="metric-card" data-od-id="metric-evidence">
+              <div class="metric-label"><span>Evidence records</span><span class="metric-glyph"><svg class="icon"><use href="#i-file"/></svg></span></div>
+              <strong>12</strong>
+              <p>Static preview content</p>
+            </article>
+          </section>
+
+          <div class="dashboard-grid">
+            <div class="main-column">
+              <section class="card" data-od-id="active-queue-card">
+                <div class="card-header">
+                  <div>
+                    <h2 data-od-id="active-queue-heading">Active queue</h2>
+                    <p>Reference jobs use generic local content and session-only controls.</p>
+                  </div>
+                  <div class="filter-group" aria-label="Filter queue">
+                    <button class="filter-button" type="button" aria-pressed="true" data-queue-filter="all">All 3</button>
+                    <button class="filter-button" type="button" aria-pressed="false" data-queue-filter="running">Running 2</button>
+                    <button class="filter-button" type="button" aria-pressed="false" data-queue-filter="waiting">Waiting 1</button>
+                    <button class="filter-button" type="button" aria-pressed="false" data-queue-filter="paused">Paused 0</button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="queue-list" data-queue-list data-od-id="active-queue-list">
+                    <div class="queue-head" aria-hidden="true"><span>Operation</span><span>Status</span><span>Progress</span><span>Action</span></div>
+                    <article class="queue-row" data-status="running" data-queue-id="terminology-scan" data-od-id="queue-item-terminology-scan">
+                      <div class="queue-title"><strong>Terminology scan</strong><span>Local document set</span></div>
+                      <span class="status-chip running">Running</span>
+                      <div class="progress-block"><div class="progress-label"><span>Analyzing</span><span>68%</span></div><div class="progress-track" role="progressbar" aria-label="Terminology scan progress" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:68%"></div></div></div>
+                      <button class="row-action" type="button" data-queue-action="pause">Pause</button>
+                    </article>
+                    <article class="queue-row" data-status="running" data-queue-id="tone-review" data-od-id="queue-item-tone-review">
+                      <div class="queue-title"><strong>Tone review</strong><span>Selected content</span></div>
+                      <span class="status-chip running">Running</span>
+                      <div class="progress-block"><div class="progress-label"><span>Comparing</span><span>42%</span></div><div class="progress-track" role="progressbar" aria-label="Tone review progress" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:42%"></div></div></div>
+                      <button class="row-action" type="button" data-queue-action="pause">Pause</button>
+                    </article>
+                    <article class="queue-row" data-status="waiting" data-queue-id="evidence-package" data-od-id="queue-item-evidence-package">
+                      <div class="queue-title"><strong>Evidence package</strong><span>Depends on review</span></div>
+                      <span class="status-chip waiting">Waiting</span>
+                      <div class="progress-block"><div class="progress-label"><span>Queued</span><span>0%</span></div><div class="progress-track" role="progressbar" aria-label="Evidence package progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:0%"></div></div></div>
+                      <button class="row-action" type="button" data-queue-action="start">Start now</button>
+                    </article>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <aside class="context-column" aria-label="Context controls">
+              <section class="card" data-od-id="personal-wording-import-card">
+                <div class="card-header">
+                  <div>
+                    <h2 data-od-id="personal-wording-heading">Personal wording</h2>
+                    <p>Import one local JSON payload. Public evidence never includes its file name, path, entry keys, values, content, or count.</p>
+                  </div>
+                  <span class="status-chip current" data-import-chip>Local only</span>
+                </div>
+                <div class="card-body">
+                  <div class="import-zone" data-import-zone data-od-id="personal-wording-import-zone">
+                    <span class="import-icon"><svg class="icon"><use href="#i-upload"/></svg></span>
+                    <strong data-import-title>No file loaded</strong>
+                    <p data-import-message>Use schemaVersion 1 plus entries. Maximum 256 KiB, 4,096 entries, object depth 2, keys 1 to 160 characters, and values 0 to 1,000 characters. Invalid replacements are rejected whole and leave the last valid local wording active until Clear.</p>
+                    <div class="button-row">
+                      <button class="button" type="button" data-choose-import data-od-id="choose-wording-json">Choose JSON</button>
+                      <button class="button text" type="button" data-clear-import disabled data-od-id="clear-wording-json">Clear</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="card" data-od-id="quick-settings-card">
+                <div class="card-header">
+                  <div>
+                    <h2 data-od-id="quick-settings-heading">Quick settings</h2>
+                    <p>Safe preview preferences persist on this device.</p>
+                  </div>
+                  <button class="button text" type="button" data-go-tab="settings">All settings</button>
+                </div>
+                <div class="card-body setting-list">
+                  <div class="setting-row">
+                    <div class="setting-copy"><strong>Evidence capture</strong><span>Record a review entry for each completed operation.</span></div>
+                    <button class="switch" type="button" role="switch" aria-label="Evidence capture" aria-checked="true" data-setting="evidence"></button>
+                  </div>
+                  <div class="setting-row">
+                    <div class="setting-copy"><strong>Reduced motion</strong><span>Remove non-essential movement from the reference.</span></div>
+                    <button class="switch" type="button" role="switch" aria-label="Reduced motion" aria-checked="false" data-setting="motion"></button>
+                  </div>
+                  <div class="setting-row">
+                    <div class="setting-copy"><strong>Contrast boost</strong><span>Strengthen muted text and surface borders.</span></div>
+                    <button class="switch" type="button" role="switch" aria-label="Contrast boost" aria-checked="false" data-setting="contrast"></button>
+                  </div>
+                </div>
+              </section>
+            </aside>
+
+            <div class="lower-grid">
+              <section class="card" data-od-id="adapter-health-card">
+                <div class="card-header">
+                  <div>
+                    <h2 data-od-id="adapter-health-heading">Adapter health</h2>
+                    <p>Static adapter states demonstrate healthy and review conditions.</p>
+                  </div>
+                  <button class="button text" type="button" data-go-tab="adapters">View all</button>
+                </div>
+                <div class="card-body adapter-list">
+                  <button class="adapter-row" type="button" aria-expanded="false" data-adapter-toggle="plain-text" data-od-id="adapter-plain-text">
+                    <span class="adapter-mark"><svg class="icon"><use href="#i-file"/></svg></span>
+                    <span class="adapter-copy"><strong>Plain text</strong><span>Local read and write checks completed</span></span>
+                    <span class="status-chip ready">Ready</span>
+                    <svg class="icon"><use href="#i-chevron"/></svg>
+                  </button>
+                  <div class="adapter-detail" data-adapter-detail="plain-text" hidden>Reference detail: local parsing, encoding checks, and export validation are available.</div>
+                  <button class="adapter-row" type="button" aria-expanded="false" data-adapter-toggle="office" data-od-id="adapter-office-documents">
+                    <span class="adapter-mark"><svg class="icon"><use href="#i-file"/></svg></span>
+                    <span class="adapter-copy"><strong>Office documents</strong><span>Document structure inspection is available</span></span>
+                    <span class="status-chip ready">Ready</span>
+                    <svg class="icon"><use href="#i-chevron"/></svg>
+                  </button>
+                  <div class="adapter-detail" data-adapter-detail="office" hidden>Reference detail: document text, headings, tables, and comments are represented locally.</div>
+                  <button class="adapter-row" type="button" aria-expanded="false" data-adapter-toggle="pdf" data-od-id="adapter-pdf">
+                    <span class="adapter-mark"><svg class="icon"><use href="#i-file"/></svg></span>
+                    <span class="adapter-copy"><strong>PDF documents</strong><span>One capability requires review</span></span>
+                    <span class="status-chip review">Review</span>
+                    <svg class="icon"><use href="#i-chevron"/></svg>
+                  </button>
+                  <div class="adapter-detail" data-adapter-detail="pdf" hidden>Reference detail: opaque document features remain visible as a review state rather than a guessed success.</div>
+                </div>
+              </section>
+
+              <section class="card" data-od-id="evidence-cards">
+                <div class="card-header">
+                  <div>
+                    <h2 data-od-id="evidence-heading">Evidence</h2>
+                    <p>Static previews show the intended record hierarchy.</p>
+                  </div>
+                  <span class="preview-badge">Static preview</span>
+                </div>
+                <div class="card-body evidence-list">
+                  <article class="evidence-row" data-od-id="evidence-transformation-record">
+                    <span class="evidence-mark"><svg class="icon"><use href="#i-check"/></svg></span>
+                    <span class="evidence-copy"><strong>Transformation record</strong><span>Before and after structure is ready for review</span></span>
+                    <button class="button text" type="button" data-evidence="Transformation record">Review</button>
+                  </article>
+                  <article class="evidence-row" data-od-id="evidence-validation-summary">
+                    <span class="evidence-mark"><svg class="icon"><use href="#i-check"/></svg></span>
+                    <span class="evidence-copy"><strong>Validation summary</strong><span>Reference checks contain no blocking state</span></span>
+                    <button class="button text" type="button" data-evidence="Validation summary">Open</button>
+                  </article>
+                  <article class="evidence-row" data-od-id="evidence-export-receipt">
+                    <span class="evidence-mark"><svg class="icon"><use href="#i-file"/></svg></span>
+                    <span class="evidence-copy"><strong>Export receipt</strong><span>No destination is set in this reference</span></span>
+                    <button class="button text" type="button" data-evidence="Export receipt">Inspect</button>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen-panel" id="panel-queue" role="tabpanel" aria-labelledby="tab-queue" data-panel="queue" data-od-id="queue-workspace" hidden>
+          <div class="workspace-header">
+            <div><p class="eyebrow">Workspace tab</p><h1 data-od-id="queue-heading">Queue</h1><p class="lede">Search and control the current reference operations without leaving the workspace.</p></div>
+            <div class="header-actions"><button class="button primary" type="button" data-open-operation data-od-id="queue-new-operation-cta"><svg class="icon"><use href="#i-add"/></svg>New operation</button></div>
+          </div>
+          <section class="card">
+            <div class="card-header">
+              <div class="search-field" data-od-id="queue-search-field"><svg class="icon"><use href="#i-search"/></svg><input type="search" placeholder="Search queue" aria-label="Search queue" data-queue-search></div>
+              <span class="preview-badge">Reference data</span>
+            </div>
+            <div class="card-body">
+              <div class="queue-list" data-queue-list data-od-id="focused-queue-list">
+                <div class="queue-head" aria-hidden="true"><span>Operation</span><span>Status</span><span>Progress</span><span>Action</span></div>
+                <article class="queue-row" data-status="running" data-queue-id="terminology-scan" data-search="terminology scan local document set" data-od-id="focused-queue-item-terminology-scan"><div class="queue-title"><strong>Terminology scan</strong><span>Local document set</span></div><span class="status-chip running">Running</span><div class="progress-block"><div class="progress-label"><span>Analyzing</span><span>68%</span></div><div class="progress-track" role="progressbar" aria-label="Terminology scan progress" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:68%"></div></div></div><button class="row-action" type="button" data-queue-action="pause">Pause</button></article>
+                <article class="queue-row" data-status="running" data-queue-id="tone-review" data-search="tone review selected content" data-od-id="focused-queue-item-tone-review"><div class="queue-title"><strong>Tone review</strong><span>Selected content</span></div><span class="status-chip running">Running</span><div class="progress-block"><div class="progress-label"><span>Comparing</span><span>42%</span></div><div class="progress-track" role="progressbar" aria-label="Tone review progress" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:42%"></div></div></div><button class="row-action" type="button" data-queue-action="pause">Pause</button></article>
+                <article class="queue-row" data-status="waiting" data-queue-id="evidence-package" data-search="evidence package depends on review" data-od-id="focused-queue-item-evidence-package"><div class="queue-title"><strong>Evidence package</strong><span>Depends on review</span></div><span class="status-chip waiting">Waiting</span><div class="progress-block"><div class="progress-label"><span>Queued</span><span>0%</span></div><div class="progress-track" role="progressbar" aria-label="Evidence package progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:0%"></div></div></div><button class="row-action" type="button" data-queue-action="start">Start now</button></article>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="screen-panel" id="panel-adapters" role="tabpanel" aria-labelledby="tab-adapters" data-panel="adapters" data-od-id="adapters-workspace" hidden>
+          <div class="workspace-header">
+            <div><p class="eyebrow">Workspace tab</p><h1 data-od-id="adapters-heading">Adapter health</h1><p class="lede">Inspect local capabilities and keep unavailable behavior visible instead of guessing.</p></div>
+            <div class="header-actions"><button class="button" type="button" data-refresh-adapters data-od-id="refresh-adapters"><svg class="icon"><use href="#i-refresh"/></svg>Refresh health</button></div>
+          </div>
+          <div class="focused-panel-grid" data-od-id="adapter-card-grid">
+            <article class="adapter-card" data-od-id="adapter-card-plain-text"><div class="adapter-card-head"><h2>Plain text</h2><span class="status-chip ready">Ready</span></div><dl><dt>Mode</dt><dd>Local</dd><dt>Encoding</dt><dd>UTF-8</dd><dt>Last check</dt><dd>Reference</dd></dl></article>
+            <article class="adapter-card" data-od-id="adapter-card-office"><div class="adapter-card-head"><h2>Office documents</h2><span class="status-chip ready">Ready</span></div><dl><dt>Mode</dt><dd>Local</dd><dt>Structure</dt><dd>Available</dd><dt>Last check</dt><dd>Reference</dd></dl></article>
+            <article class="adapter-card" data-od-id="adapter-card-pdf"><div class="adapter-card-head"><h2>PDF documents</h2><span class="status-chip review">Review</span></div><dl><dt>Mode</dt><dd>Local</dd><dt>Opaque features</dt><dd>Review</dd><dt>Last check</dt><dd>Reference</dd></dl></article>
+            <article class="adapter-card" data-od-id="adapter-card-structured"><div class="adapter-card-head"><h2>Structured data</h2><span class="status-chip ready">Ready</span></div><dl><dt>Mode</dt><dd>Local</dd><dt>Schema checks</dt><dd>Available</dd><dt>Last check</dt><dd>Reference</dd></dl></article>
+          </div>
+        </section>
+
+        <section class="screen-panel" id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence" data-panel="evidence" data-od-id="evidence-workspace" hidden>
+          <div class="workspace-header">
+            <div><p class="eyebrow">Workspace tab</p><h1 data-od-id="evidence-workspace-heading">Evidence</h1><p class="lede">Trace what changed, which local check ran, and what remains a reference-only state.</p></div>
+            <div class="header-actions"><button class="button" type="button" data-evidence="Evidence export" data-od-id="export-evidence"><svg class="icon"><use href="#i-file"/></svg>Export preview</button></div>
+          </div>
+          <div class="focused-panel-grid">
+            <section class="card">
+              <div class="card-header"><div><h2>Evidence cards</h2><p>These entries are static design content, not runtime claims.</p></div><span class="preview-badge">Static preview</span></div>
+              <div class="card-body evidence-list">
+                <article class="evidence-row" data-od-id="evidence-workspace-source-inspection"><span class="evidence-mark"><svg class="icon"><use href="#i-check"/></svg></span><span class="evidence-copy"><strong>Source inspection</strong><span>Structure and encoding review</span></span><button class="button text" type="button" data-evidence="Source inspection">Review</button></article>
+                <article class="evidence-row" data-od-id="evidence-workspace-transformation-comparison"><span class="evidence-mark"><svg class="icon"><use href="#i-check"/></svg></span><span class="evidence-copy"><strong>Transformation comparison</strong><span>Before and after wording layout</span></span><button class="button text" type="button" data-evidence="Transformation comparison">Review</button></article>
+                <article class="evidence-row" data-od-id="evidence-workspace-export-receipt"><span class="evidence-mark"><svg class="icon"><use href="#i-file"/></svg></span><span class="evidence-copy"><strong>Export receipt</strong><span>No destination is configured</span></span><button class="button text" type="button" data-evidence="Export receipt">Inspect</button></article>
+              </div>
+            </section>
+            <section class="card">
+              <div class="card-header"><div><h2>Reference activity</h2><p>A deterministic fixture demonstrates chronology.</p></div></div>
+              <div class="card-body timeline">
+                <div class="timeline-item"><span class="timeline-dot"></span><div><strong>Validation summary prepared</strong><span>Fixture event · 13:18:42 EDT</span></div></div>
+                <div class="timeline-item"><span class="timeline-dot"></span><div><strong>Adapter state reviewed</strong><span>Fixture event · 13:14:05 EDT</span></div></div>
+                <div class="timeline-item"><span class="timeline-dot"></span><div><strong>Local operation started</strong><span>Fixture event · 13:09:21 EDT</span></div></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="screen-panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-panel="settings" data-od-id="settings-workspace" hidden>
+          <div class="workspace-header">
+            <div><p class="eyebrow">Workspace tab</p><h1 data-od-id="settings-heading">Settings</h1><p class="lede">Adjust the reference locally. No preference leaves this device.</p></div>
+          </div>
+          <div class="focused-panel-grid">
+            <section class="card" data-od-id="appearance-settings">
+              <div class="card-header"><div><h2>Appearance</h2><p>Dark graphite remains the reference base.</p></div></div>
+              <div class="card-body setting-list">
+                <div class="setting-row"><div class="setting-copy"><strong>Density</strong><span>Control information spacing without shrinking targets.</span></div><div class="segmented" aria-label="Density"><button class="segment" type="button" aria-pressed="true" data-density="comfortable">Comfortable</button><button class="segment" type="button" aria-pressed="false" data-density="compact">Compact</button></div></div>
+                <div class="setting-row"><div class="setting-copy"><strong>Contrast boost</strong><span>Strengthen muted text and borders.</span></div><button class="switch" type="button" role="switch" aria-label="Contrast boost" aria-checked="false" data-setting="contrast"></button></div>
+                <div class="setting-row"><div class="setting-copy"><strong>Reduced motion</strong><span>Remove non-essential movement.</span></div><button class="switch" type="button" role="switch" aria-label="Reduced motion" aria-checked="false" data-setting="motion"></button></div>
+              </div>
+            </section>
+            <section class="card" data-od-id="layout-language-settings">
+              <div class="card-header"><div><h2>Layout language test</h2><p>Spacing changes only. Copy remains neutral in this reference.</p></div></div>
+              <div class="card-body">
+                <div class="segmented" aria-label="Layout language test"><button class="segment" type="button" aria-pressed="true" data-language-spacing="english">English</button><button class="segment" type="button" aria-pressed="false" data-language-spacing="cantonese">Cantonese</button><button class="segment" type="button" aria-pressed="false" data-language-spacing="bilingual">Bilingual</button></div>
+              </div>
+            </section>
+            <section class="card wide" data-od-id="settings-personal-wording-import">
+              <div class="card-header"><div><h2>Personal wording import</h2><p>Validation stays local. Public evidence never includes a file name, path, entry keys, values, content, or count.</p></div><span class="status-chip current" data-import-chip>Local only</span></div>
+              <div class="card-body">
+                <div class="import-zone" data-import-zone>
+                  <span class="import-icon"><svg class="icon"><use href="#i-upload"/></svg></span>
+                  <strong data-import-title>No file loaded</strong>
+                  <p data-import-message>Use schemaVersion 1 plus entries. Maximum 256 KiB, 4,096 entries, object depth 2, keys 1 to 160 characters, and values 0 to 1,000 characters. Invalid replacements are rejected whole and leave the last valid local wording active until Clear.</p>
+                  <div class="button-row"><button class="button" type="button" data-choose-import>Choose JSON</button><button class="button text" type="button" data-clear-import disabled>Clear</button></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <input class="hidden-input" id="wording-file" type="file" accept=".json,application/json" aria-label="Choose personal wording JSON file">
+
+  <dialog id="command-dialog" aria-labelledby="command-title" data-od-id="command-palette-dialog">
+    <div class="dialog-header">
+      <div><p class="eyebrow">Command palette</p><h2 id="command-title">Find a destination or action</h2></div>
+      <button class="icon-button" type="button" data-close-dialog aria-label="Close command palette"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dialog-body">
+      <div class="search-field"><svg class="icon"><use href="#i-search"/></svg><input id="command-search" type="search" placeholder="Type a command" aria-label="Search commands"></div>
+      <div class="command-list" id="command-list">
+        <button class="command-item" type="button" data-command="operations" data-search-command="operations overview dashboard"><svg class="icon"><use href="#i-grid"/></svg><span>Open Operations<small>Primary dashboard and status</small></span><kbd>1</kbd></button>
+        <button class="command-item" type="button" data-command="queue" data-search-command="queue jobs operations"><svg class="icon"><use href="#i-list"/></svg><span>Open Queue<small>Search and control operations</small></span><kbd>2</kbd></button>
+        <button class="command-item" type="button" data-command="adapters" data-search-command="adapters health local"><svg class="icon"><use href="#i-plug"/></svg><span>Open Adapters<small>Inspect local capabilities</small></span><kbd>3</kbd></button>
+        <button class="command-item" type="button" data-command="evidence" data-search-command="evidence records export"><svg class="icon"><use href="#i-file"/></svg><span>Open Evidence<small>Review reference records</small></span><kbd>4</kbd></button>
+        <button class="command-item" type="button" data-command="settings" data-search-command="settings appearance wording import"><svg class="icon"><use href="#i-settings"/></svg><span>Open Settings<small>Appearance and local import</small></span><kbd>5</kbd></button>
+        <button class="command-item" type="button" data-command="new-operation" data-search-command="new create add operation"><svg class="icon"><use href="#i-add"/></svg><span>New operation<small>Add a session-only preview item</small></span><kbd>N</kbd></button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="operation-dialog" aria-labelledby="operation-title" data-od-id="new-operation-dialog">
+    <form id="operation-form">
+      <div class="dialog-header">
+        <div><p class="eyebrow">Preview workflow</p><h2 id="operation-title">New operation</h2></div>
+        <button class="icon-button" type="button" data-close-dialog aria-label="Close new operation"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="dialog-body">
+        <p class="subtle">This control adds a session-only queue item. It does not read a file or retain content.</p>
+        <div class="form-field">
+          <label for="operation-name">Operation name</label>
+          <input id="operation-name" name="name" type="text" maxlength="60" placeholder="Example: Review selected wording" required>
+          <span class="helper">Use a short label. Avoid sensitive information in this reference.</span>
+        </div>
+        <div class="form-field">
+          <span class="field-label">Adapter</span>
+          <div class="segmented" role="radiogroup" aria-label="Adapter">
+            <button class="segment" type="button" role="radio" aria-checked="true" data-radio-group="adapter" data-radio-value="Plain text">Plain text</button>
+            <button class="segment" type="button" role="radio" aria-checked="false" data-radio-group="adapter" data-radio-value="Office document">Office</button>
+            <button class="segment" type="button" role="radio" aria-checked="false" data-radio-group="adapter" data-radio-value="PDF document">PDF</button>
+          </div>
+        </div>
+        <div class="form-field">
+          <span class="field-label">Priority</span>
+          <div class="segmented" role="radiogroup" aria-label="Priority">
+            <button class="segment" type="button" role="radio" aria-checked="true" data-radio-group="priority" data-radio-value="Normal">Normal</button>
+            <button class="segment" type="button" role="radio" aria-checked="false" data-radio-group="priority" data-radio-value="Next">Next</button>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="button" type="button" data-close-dialog>Cancel</button>
+        <button class="button primary" type="submit">Add to queue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="evidence-dialog" aria-labelledby="evidence-dialog-title" data-od-id="evidence-detail-dialog">
+    <div class="dialog-header">
+      <div><p class="eyebrow">Static preview</p><h2 id="evidence-dialog-title">Evidence detail</h2></div>
+      <button class="icon-button" type="button" data-close-dialog aria-label="Close evidence detail"><svg class="icon"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dialog-body">
+      <p id="evidence-dialog-copy" class="subtle">This reference does not contain runtime evidence.</p>
+      <div class="provenance-panel">
+        <span class="preview-badge">Reference only</span>
+        <div class="provenance-item"><span>Content</span><strong>Generic fixture</strong></div>
+        <div class="provenance-item"><span>Storage</span><strong>Not retained</strong></div>
+        <div class="provenance-item"><span>Network</span><strong>Not used</strong></div>
+      </div>
+    </div>
+    <div class="dialog-footer"><button class="button" type="button" data-close-dialog>Close</button></div>
+  </dialog>
+
+  <div class="toast-region" aria-live="polite" aria-label="Notifications" data-od-id="notification-region"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var storageKey = 'wording-lens-reference-ui';
+      var settings = { tab: 'operations', evidence: true, motion: false, contrast: false, density: 'comfortable', language: 'english' };
+      var lastDialogTrigger = null;
+      var fileInput = document.getElementById('wording-file');
+      var compactQuery = window.matchMedia('(max-width: 700px)');
+
+      try {
+        var saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        settings = Object.assign(settings, saved);
+      } catch (_) {}
+
+      function persist() {
+        localStorage.setItem(storageKey, JSON.stringify(settings));
+      }
+
+      function showToast(message) {
+        var region = document.querySelector('.toast-region');
+        var toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        region.appendChild(toast);
+        window.setTimeout(function () { toast.remove(); }, 4200);
+      }
+
+      function activateTab(name, focusTab) {
+        var targetTab = document.querySelector('[data-panel-target="' + name + '"]');
+        var targetPanel = document.querySelector('[data-panel="' + name + '"]');
+        if (!targetTab || !targetPanel) return;
+        document.querySelectorAll('[data-panel-target]').forEach(function (tab) {
+          var active = tab === targetTab;
+          tab.setAttribute('aria-selected', String(active));
+          tab.tabIndex = active ? 0 : -1;
+        });
+        document.querySelectorAll('[data-panel]').forEach(function (panel) {
+          panel.hidden = panel !== targetPanel;
+        });
+        settings.tab = name;
+        persist();
+        if (focusTab) targetTab.focus();
+      }
+
+      function applySettings() {
+        document.body.classList.toggle('reduce-motion', !!settings.motion);
+        document.body.classList.toggle('contrast-boost', !!settings.contrast);
+        document.body.classList.toggle('compact', settings.density === 'compact');
+        document.body.classList.toggle('bilingual-spacing', settings.language !== 'english');
+        document.querySelectorAll('[data-setting]').forEach(function (control) {
+          control.setAttribute('aria-checked', String(!!settings[control.dataset.setting]));
+        });
+        document.querySelectorAll('[data-density]').forEach(function (control) {
+          control.setAttribute('aria-pressed', String(control.dataset.density === settings.density));
+        });
+        document.querySelectorAll('[data-language-spacing]').forEach(function (control) {
+          control.setAttribute('aria-pressed', String(control.dataset.languageSpacing === settings.language));
+        });
+      }
+
+      function openDialog(dialog, trigger) {
+        if (!dialog) return;
+        if (dialog.open) {
+          var existingTarget = dialog.querySelector('input, button, [tabindex="0"]');
+          if (existingTarget) existingTarget.focus();
+          return;
+        }
+        lastDialogTrigger = trigger || document.activeElement;
+        dialog.showModal();
+      }
+
+      function syncTabOrientation() {
+        document.querySelector('.tab-list').setAttribute('aria-orientation', compactQuery.matches ? 'horizontal' : 'vertical');
+      }
+
+      function selectRadio(control, moveFocus) {
+        var group = control.dataset.radioGroup;
+        document.querySelectorAll('[data-radio-group="' + group + '"]').forEach(function (item) {
+          var selected = item === control;
+          item.setAttribute('aria-checked', String(selected));
+          item.tabIndex = selected ? 0 : -1;
+        });
+        if (moveFocus) control.focus();
+      }
+
+      function updateQueueCounts() {
+        var rows = Array.from(document.querySelectorAll('#panel-operations .queue-row'));
+        var running = rows.filter(function (row) { return row.dataset.status === 'running'; }).length;
+        var waiting = rows.filter(function (row) { return row.dataset.status === 'waiting'; }).length;
+        var paused = rows.filter(function (row) { return row.dataset.status === 'paused'; }).length;
+        document.querySelectorAll('[data-running-count]').forEach(function (node) { node.textContent = String(running); });
+        document.querySelectorAll('[data-waiting-count]').forEach(function (node) { node.textContent = String(waiting); });
+        document.querySelectorAll('[data-queue-filter]').forEach(function (button) {
+          var type = button.dataset.queueFilter;
+          var label = type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1);
+          var count = type === 'all' ? rows.length : type === 'running' ? running : type === 'waiting' ? waiting : paused;
+          button.textContent = label + ' ' + count;
+        });
+      }
+
+      function closeDialog(dialog) {
+        if (!dialog || !dialog.open) return;
+        dialog.close();
+        if (lastDialogTrigger && typeof lastDialogTrigger.focus === 'function') lastDialogTrigger.focus();
+      }
+
+      function setImportState(state, message, loaded) {
+        document.querySelectorAll('[data-import-title]').forEach(function (node) { node.textContent = state; });
+        document.querySelectorAll('[data-import-message]').forEach(function (node) { node.textContent = message; });
+        document.querySelectorAll('[data-clear-import]').forEach(function (button) { button.disabled = !loaded; });
+        document.querySelectorAll('[data-import-chip]').forEach(function (chip) { chip.textContent = loaded ? 'Loaded locally' : 'Local only'; });
+      }
+
+      var WORDING_IMPORT_CONTRACT = Object.freeze({
+        permittedRootFields: Object.freeze(['schemaVersion', 'entries']),
+        schemaVersion: 1,
+        maxPayloadBytes: 262144,
+        maxEntries: 4096,
+        maxObjectDepth: 2,
+        minKeyLength: 1,
+        maxKeyLength: 160,
+        minValueLength: 0,
+        maxValueLength: 1000
+      });
+      var WORDING_UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+      var WORDING_CONTROL_CHARACTER = /[\u0000-\u001F\u007F-\u009F]/u;
+      var wordingImportAttempt = 0;
+      var wordingImportLoaded = false;
+
+      function parseWordingJson(source) {
+        var position = 0;
+
+        function invalid() { throw new Error('invalid'); }
+
+        function skipWhitespace() {
+          while (position < source.length) {
+            var code = source.charCodeAt(position);
+            if (code !== 32 && code !== 9 && code !== 10 && code !== 13) break;
+            position += 1;
+          }
+        }
+
+        function readString() {
+          if (source[position] !== '"') invalid();
+          var start = position;
+          position += 1;
+          while (position < source.length) {
+            var code = source.charCodeAt(position);
+            if (code === 34) {
+              position += 1;
+              var value;
+              try { value = JSON.parse(source.slice(start, position)); }
+              catch (error) { invalid(); }
+              if (WORDING_CONTROL_CHARACTER.test(value)) invalid();
+              return value;
+            }
+            if (code === 92) {
+              position += 1;
+              if (position >= source.length) invalid();
+              var escape = source[position];
+              if ('"\\/bfnrt'.includes(escape)) {
+                position += 1;
+                continue;
+              }
+              if (escape === 'u' && /^[0-9a-fA-F]{4}$/.test(source.slice(position + 1, position + 5))) {
+                position += 5;
+                continue;
+              }
+              invalid();
+            }
+            if (code < 32) invalid();
+            position += 1;
+          }
+          invalid();
+        }
+
+        function readNumber() {
+          var match = source.slice(position).match(/^-?(?:0|[1-9][0-9]*)(?:[.][0-9]+)?(?:[eE][+-]?[0-9]+)?/);
+          if (!match) invalid();
+          position += match[0].length;
+          var value = Number(match[0]);
+          if (!Number.isFinite(value)) invalid();
+          return value;
+        }
+
+        function readArray(depth) {
+          if (depth > WORDING_IMPORT_CONTRACT.maxObjectDepth) invalid();
+          position += 1;
+          skipWhitespace();
+          var value = [];
+          if (source[position] === ']') {
+            position += 1;
+            return value;
+          }
+          while (position < source.length) {
+            value.push(readValue(depth + 1));
+            skipWhitespace();
+            if (source[position] === ']') {
+              position += 1;
+              return value;
+            }
+            if (source[position] !== ',') invalid();
+            position += 1;
+            skipWhitespace();
+          }
+          invalid();
+        }
+
+        function readObject(depth) {
+          if (depth > WORDING_IMPORT_CONTRACT.maxObjectDepth) invalid();
+          position += 1;
+          skipWhitespace();
+          var value = Object.create(null);
+          var seenKeys = new Set();
+          if (source[position] === '}') {
+            position += 1;
+            return value;
+          }
+          while (position < source.length) {
+            var key = readString();
+            if (seenKeys.has(key) || WORDING_UNSAFE_KEYS.has(key)) invalid();
+            seenKeys.add(key);
+            skipWhitespace();
+            if (source[position] !== ':') invalid();
+            position += 1;
+            value[key] = readValue(depth + 1);
+            skipWhitespace();
+            if (source[position] === '}') {
+              position += 1;
+              return value;
+            }
+            if (source[position] !== ',') invalid();
+            position += 1;
+            skipWhitespace();
+          }
+          invalid();
+        }
+
+        function readValue(depth) {
+          skipWhitespace();
+          var token = source[position];
+          if (token === '"') return readString();
+          if (token === '{') return readObject(depth);
+          if (token === '[') return readArray(depth);
+          if (source.slice(position, position + 4) === 'true') { position += 4; return true; }
+          if (source.slice(position, position + 5) === 'false') { position += 5; return false; }
+          if (source.slice(position, position + 4) === 'null') { position += 4; return null; }
+          return readNumber();
+        }
+
+        var value = readValue(1);
+        skipWhitespace();
+        if (position !== source.length) invalid();
+        return value;
+      }
+
+      function isValidWordingPayload(payload) {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+        var rootKeys = Object.keys(payload);
+        var exactRoot = rootKeys.length === WORDING_IMPORT_CONTRACT.permittedRootFields.length &&
+          WORDING_IMPORT_CONTRACT.permittedRootFields.every(function (field) {
+            return Object.prototype.hasOwnProperty.call(payload, field);
+          });
+        if (!exactRoot || payload.schemaVersion !== WORDING_IMPORT_CONTRACT.schemaVersion) return false;
+        var entries = payload.entries;
+        if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return false;
+        var keys = Object.keys(entries);
+        if (keys.length > WORDING_IMPORT_CONTRACT.maxEntries) return false;
+        return keys.every(function (key) {
+          var value = entries[key];
+          var keyLength = Array.from(key).length;
+          if (WORDING_UNSAFE_KEYS.has(key) || WORDING_CONTROL_CHARACTER.test(key)) return false;
+          if (keyLength < WORDING_IMPORT_CONTRACT.minKeyLength || keyLength > WORDING_IMPORT_CONTRACT.maxKeyLength) return false;
+          if (typeof value !== 'string' || WORDING_CONTROL_CHARACTER.test(value)) return false;
+          var valueLength = Array.from(value).length;
+          return valueLength >= WORDING_IMPORT_CONTRACT.minValueLength && valueLength <= WORDING_IMPORT_CONTRACT.maxValueLength;
+        });
+      }
+
+      function rejectWordingImport(message) {
+        if (wordingImportLoaded) {
+          setImportState('Loaded locally', message + ' The last valid local wording remains active. Public evidence excludes the file name, path, entry keys, values, content, and count.', true);
+          showToast('New personal wording was rejected whole. Existing local wording remains active.');
+          return;
+        }
+        setImportState('File not loaded', message, false);
+        showToast('Personal wording file was not loaded.');
+      }
+
+      function validateWordingFile(file) {
+        if (!file) return;
+        var attempt = ++wordingImportAttempt;
+        if (file.size > WORDING_IMPORT_CONTRACT.maxPayloadBytes) {
+          rejectWordingImport('The payload exceeds the 256 KiB limit and was rejected whole.');
+          return;
+        }
+        file.arrayBuffer().then(function (buffer) {
+          if (attempt !== wordingImportAttempt) return;
+          if (buffer.byteLength > WORDING_IMPORT_CONTRACT.maxPayloadBytes) throw new Error('invalid');
+          var text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+          var payload = parseWordingJson(text);
+          if (!isValidWordingPayload(payload)) throw new Error('invalid');
+          if (attempt !== wordingImportAttempt) return;
+          wordingImportLoaded = true;
+          setImportState('Loaded locally', 'Validated locally and accepted as one complete payload. Public evidence excludes the file name, path, entry keys, values, content, and count.', true);
+          showToast('Personal wording loaded locally for this preview session.');
+        }).catch(function () {
+          if (attempt !== wordingImportAttempt) return;
+          rejectWordingImport('The payload was rejected whole. It must use schemaVersion 1 plus entries and satisfy every stated limit and safety rule.');
+        });
+      }
+
+      function addQueueItem(name, adapter, priority) {
+        var queueId = 'preview-' + Date.now().toString(36);
+        document.querySelectorAll('[data-queue-list]').forEach(function (list) {
+          var row = document.createElement('article');
+          row.className = 'queue-row';
+          row.dataset.status = 'waiting';
+          row.dataset.queueId = queueId;
+          row.dataset.search = (name + ' ' + adapter + ' ' + priority).toLowerCase();
+
+          var title = document.createElement('div');
+          title.className = 'queue-title';
+          var strong = document.createElement('strong');
+          strong.textContent = name;
+          var sub = document.createElement('span');
+          sub.textContent = adapter + ' · ' + priority + ' priority';
+          title.append(strong, sub);
+
+          var status = document.createElement('span');
+          status.className = 'status-chip waiting';
+          status.textContent = 'Waiting';
+
+          var progress = document.createElement('div');
+          progress.className = 'progress-block';
+          progress.innerHTML = '<div class="progress-label"><span>Queued</span><span>0%</span></div><div class="progress-track" role="progressbar" aria-label="New operation progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="--progress:0%"></div></div>';
+
+          var action = document.createElement('button');
+          action.className = 'row-action';
+          action.type = 'button';
+          action.dataset.queueAction = 'start';
+          action.textContent = 'Start now';
+          row.append(title, status, progress, action);
+          var head = list.querySelector('.queue-head');
+          if (head && head.nextSibling) list.insertBefore(row, head.nextSibling);
+          else list.appendChild(row);
+        });
+        updateQueueCounts();
+      }
+
+      document.querySelectorAll('[data-panel-target]').forEach(function (tab) {
+        tab.addEventListener('click', function () { activateTab(tab.dataset.panelTarget, false); });
+      });
+
+      document.querySelector('.tab-list').addEventListener('keydown', function (event) {
+        var tabs = Array.from(document.querySelectorAll('[data-panel-target]'));
+        var current = tabs.indexOf(document.activeElement);
+        var horizontal = window.matchMedia('(max-width: 700px)').matches;
+        var previous = horizontal ? event.key === 'ArrowLeft' : event.key === 'ArrowUp';
+        var next = horizontal ? event.key === 'ArrowRight' : event.key === 'ArrowDown';
+        if (!previous && !next) return;
+        event.preventDefault();
+        var index = previous ? (current - 1 + tabs.length) % tabs.length : (current + 1) % tabs.length;
+        activateTab(tabs[index].dataset.panelTarget, true);
+      });
+
+      document.addEventListener('click', function (event) {
+        var paletteTrigger = event.target.closest('[data-open-palette]');
+        var operationTrigger = event.target.closest('[data-open-operation]');
+        var closeTrigger = event.target.closest('[data-close-dialog]');
+        var tabTrigger = event.target.closest('[data-go-tab]');
+        var setting = event.target.closest('[data-setting]');
+        var density = event.target.closest('[data-density]');
+        var language = event.target.closest('[data-language-spacing]');
+        var radio = event.target.closest('[data-radio-group]');
+        var queueAction = event.target.closest('[data-queue-action]');
+        var adapter = event.target.closest('[data-adapter-toggle]');
+        var evidence = event.target.closest('[data-evidence]');
+        var chooseImport = event.target.closest('[data-choose-import]');
+        var clearImport = event.target.closest('[data-clear-import]');
+        var windowAction = event.target.closest('[data-window-action]');
+
+        if (paletteTrigger) {
+          openDialog(document.getElementById('command-dialog'), paletteTrigger);
+          window.setTimeout(function () { document.getElementById('command-search').focus(); }, 0);
+        }
+        if (operationTrigger) {
+          openDialog(document.getElementById('operation-dialog'), operationTrigger);
+          window.setTimeout(function () { document.getElementById('operation-name').focus(); }, 0);
+        }
+        if (closeTrigger) closeDialog(closeTrigger.closest('dialog'));
+        if (tabTrigger) activateTab(tabTrigger.dataset.goTab, true);
+
+        if (setting) {
+          var key = setting.dataset.setting;
+          settings[key] = !settings[key];
+          applySettings();
+          persist();
+          showToast(setting.getAttribute('aria-label') + (settings[key] ? ' enabled.' : ' disabled.'));
+        }
+
+        if (density) {
+          settings.density = density.dataset.density;
+          applySettings();
+          persist();
+          showToast('Density set to ' + settings.density + '.');
+        }
+
+        if (language) {
+          settings.language = language.dataset.languageSpacing;
+          applySettings();
+          persist();
+          showToast('Layout spacing preview set to ' + settings.language + '.');
+        }
+
+        if (radio) {
+          selectRadio(radio, false);
+        }
+
+        if (queueAction) {
+          var row = queueAction.closest('.queue-row');
+          var nextStatus = queueAction.dataset.queueAction === 'pause' ? 'paused' : 'running';
+          var matchingRows = row.dataset.queueId ? document.querySelectorAll('.queue-row[data-queue-id="' + row.dataset.queueId + '"]') : [row];
+          matchingRows.forEach(function (matchingRow) {
+            var chip = matchingRow.querySelector('.status-chip');
+            var label = matchingRow.querySelector('.progress-label span:first-child');
+            var action = matchingRow.querySelector('[data-queue-action]');
+            matchingRow.dataset.status = nextStatus;
+            chip.className = 'status-chip ' + nextStatus;
+            chip.textContent = nextStatus === 'paused' ? 'Paused' : 'Running';
+            label.textContent = nextStatus === 'paused' ? 'Paused' : 'Processing';
+            action.dataset.queueAction = nextStatus === 'paused' ? 'start' : 'pause';
+            action.textContent = nextStatus === 'paused' ? 'Resume' : 'Pause';
+          });
+          showToast(nextStatus === 'paused' ? 'Operation paused in this preview session.' : 'Operation started in this preview session.');
+          updateQueueCounts();
+        }
+
+        if (adapter) {
+          var detail = document.querySelector('[data-adapter-detail="' + adapter.dataset.adapterToggle + '"]');
+          var expanded = adapter.getAttribute('aria-expanded') === 'true';
+          adapter.setAttribute('aria-expanded', String(!expanded));
+          detail.hidden = expanded;
+        }
+
+        if (evidence) {
+          var evidenceDialog = document.getElementById('evidence-dialog');
+          document.getElementById('evidence-dialog-title').textContent = evidence.dataset.evidence;
+          document.getElementById('evidence-dialog-copy').textContent = evidence.dataset.evidence + ' is a static preview. No runtime evidence or private data is included.';
+          openDialog(evidenceDialog, evidence);
+        }
+
+        if (chooseImport) fileInput.click();
+        if (clearImport) {
+          wordingImportAttempt += 1;
+          wordingImportLoaded = false;
+          fileInput.value = '';
+          setImportState('No file loaded', 'Use schemaVersion 1 plus entries. Maximum 256 KiB, 4,096 entries, object depth 2, keys 1 to 160 characters, and values 0 to 1,000 characters. Invalid replacements are rejected whole and leave the last valid local wording active until Clear.', false);
+          showToast('Personal wording was cleared from this preview session.');
+        }
+
+        if (windowAction) showToast('Shell preview only. The desktop host supplies the ' + windowAction.dataset.windowAction + ' action.');
+      });
+
+      document.querySelectorAll('[data-queue-filter]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var filter = button.dataset.queueFilter;
+          document.querySelectorAll('[data-queue-filter]').forEach(function (item) { item.setAttribute('aria-pressed', String(item === button)); });
+          document.querySelectorAll('#panel-operations .queue-row').forEach(function (row) {
+            row.hidden = filter !== 'all' && row.dataset.status !== filter;
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-import-zone]').forEach(function (zone) {
+        zone.addEventListener('dragover', function (event) { event.preventDefault(); zone.classList.add('dragging'); });
+        zone.addEventListener('dragleave', function () { zone.classList.remove('dragging'); });
+        zone.addEventListener('drop', function (event) {
+          event.preventDefault();
+          zone.classList.remove('dragging');
+          validateWordingFile(event.dataTransfer.files[0]);
+        });
+      });
+
+      fileInput.addEventListener('change', function () { validateWordingFile(fileInput.files[0]); });
+
+      document.getElementById('command-search').addEventListener('input', function (event) {
+        var query = event.target.value.trim().toLowerCase();
+        document.querySelectorAll('[data-search-command]').forEach(function (item) {
+          item.hidden = query && !item.dataset.searchCommand.includes(query);
+        });
+      });
+
+      document.querySelectorAll('[data-command]').forEach(function (item) {
+        item.addEventListener('click', function () {
+          var command = item.dataset.command;
+          closeDialog(document.getElementById('command-dialog'));
+          if (command === 'new-operation') {
+            var trigger = document.querySelector('[data-open-operation]');
+            openDialog(document.getElementById('operation-dialog'), trigger);
+            window.setTimeout(function () { document.getElementById('operation-name').focus(); }, 0);
+          } else {
+            activateTab(command, true);
+          }
+        });
+      });
+
+      document.querySelector('[data-queue-search]').addEventListener('input', function (event) {
+        var query = event.target.value.trim().toLowerCase();
+        document.querySelectorAll('#panel-queue .queue-row').forEach(function (row) {
+          var text = row.dataset.search || row.textContent.toLowerCase();
+          row.hidden = query && !text.includes(query);
+        });
+      });
+
+      document.querySelector('[data-refresh-adapters]').addEventListener('click', function () {
+        showToast('Reference adapter health refreshed. Static states are unchanged.');
+      });
+
+      document.getElementById('operation-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        var name = document.getElementById('operation-name').value.trim();
+        if (!name) return;
+        var adapter = document.querySelector('[data-radio-group="adapter"][aria-checked="true"]').dataset.radioValue;
+        var priority = document.querySelector('[data-radio-group="priority"][aria-checked="true"]').dataset.radioValue;
+        addQueueItem(name, adapter, priority);
+        event.target.reset();
+        closeDialog(document.getElementById('operation-dialog'));
+        activateTab('queue', false);
+        showToast('Operation added to the preview queue.');
+      });
+
+      document.getElementById('operation-dialog').addEventListener('keydown', function (event) {
+        var current = event.target.closest('[role="radio"][data-radio-group]');
+        if (!current) return;
+        var keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+        if (!keys.includes(event.key)) return;
+        event.preventDefault();
+        var group = Array.from(document.querySelectorAll('[data-radio-group="' + current.dataset.radioGroup + '"]'));
+        var index = group.indexOf(current);
+        if (event.key === 'Home') index = 0;
+        else if (event.key === 'End') index = group.length - 1;
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') index = (index - 1 + group.length) % group.length;
+        else index = (index + 1) % group.length;
+        selectRadio(group[index], true);
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'f') {
+          event.preventDefault();
+          var trigger = document.querySelector('[data-open-palette]');
+          openDialog(document.getElementById('command-dialog'), trigger);
+          window.setTimeout(function () { document.getElementById('command-search').focus(); }, 0);
+        }
+      });
+
+      document.querySelectorAll('dialog').forEach(function (dialog) {
+        dialog.addEventListener('click', function (event) {
+          if (event.target === dialog) closeDialog(dialog);
+        });
+      });
+
+      document.querySelectorAll('[data-radio-group]').forEach(function (radio) {
+        radio.tabIndex = radio.getAttribute('aria-checked') === 'true' ? 0 : -1;
+      });
+      syncTabOrientation();
+      if (compactQuery.addEventListener) compactQuery.addEventListener('change', syncTabOrientation);
+      else compactQuery.addListener(syncTabOrientation);
+      applySettings();
+      updateQueueCounts();
+      activateTab(settings.tab, false);
+    })();
+  </script>
+</body>
+</html>
