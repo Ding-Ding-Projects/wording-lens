@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "feature": "local-wording-overlay",
+  "surfaces": [
+    { "id": "payload-parser", "implementation": "packages/vocabulary/parse.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" },
+    { "id": "alias-index", "implementation": "packages/vocabulary/index.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" },
+    { "id": "typed-sinks", "implementation": "packages/vocabulary/index.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" },
+    { "id": "atomic-controller", "implementation": "packages/vocabulary/index.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" },
+    { "id": "encrypted-cache", "implementation": "packages/vocabulary/cache.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" },
+    { "id": "clear-reset", "implementation": "packages/vocabulary/index.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" },
+    { "id": "school-mode-seam", "implementation": "packages/vocabulary/index.mjs", "tests": "tests/vocabulary/vocabulary.test.mjs" }
+  ]
+}
