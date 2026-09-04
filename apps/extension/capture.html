@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Start download</title><link rel="stylesheet" href="surface.css"></head>
+<body>
+<main>
+  <header class="topbar"><div class="mark" aria-hidden="true">WL</div><div><h1>Start download</h1><p>Review the user-invoked request before it reaches the local application.</p></div></header>
+  <section class="card" aria-labelledby="request-title"><h2 id="request-title">Download request</h2><dl class="facts"><dt>File</dt><dd><code data-file>Waiting for a request</code></dd><dt>Source</dt><dd><code data-source>Not available</code></dd><dt>Destination</dt><dd><code data-destination>Not available</code></dd><dt>Window behavior</dt><dd>Always-on-top intent is requested for this decision surface.</dd></dl></section>
+  <section class="card grid"><div class="search"><label for="surface-search">Search this surface<input id="surface-search" data-search type="search" placeholder="Search labels and actions"></label><button type="button" data-regex-toggle aria-expanded="false">.* Regex</button></div><p data-search-result role="status">Plain text search is ready.</p><div class="regex-panel hidden" data-regex-panel><label for="regex-pattern">Pattern<input id="regex-pattern" data-regex-pattern placeholder="Enter a pattern"></label><label for="regex-flags">Flags<input id="regex-flags" data-regex-flags value="giu"></label><label for="regex-sample">Sample text<textarea id="regex-sample" data-regex-sample placeholder="Try a bounded sample"></textarea></label><p data-regex-result role="status">Regex is opt-in and evaluated locally.</p></div></section>
+  <section class="card grid"><div data-status class="notice" role="status">Loading the pending request.</div><div class="actions"><button type="button" class="primary" data-confirm disabled>Confirm download</button><button type="button" data-cancel>Cancel</button></div></section>
+</main>
+<script src="surface.js"></script><script src="capture.js"></script>
+</body></html>
