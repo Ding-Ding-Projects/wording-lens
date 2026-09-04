@@ -859,6 +859,49 @@ input[type='color'] {
   padding: 12px 14px 12px 18px;
   box-shadow: var(--shadow);
 }
+.site-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  width: min(330px, calc(100vw - 16px));
+  max-height: min(520px, calc(100vh - 80px));
+  overflow: auto;
+  border: 1px solid var(--outline);
+  border-radius: 18px;
+  background: var(--overlay);
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+.site-context-menu > button[role='menuitem'] {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--foreground);
+  padding: 0 12px;
+  text-align: left;
+}
+.site-context-menu > button[role='menuitem']:hover,
+.site-context-menu > button[role='menuitem']:focus-visible {
+  background: var(--surface-high);
+}
+.site-context-menu .regex-panel {
+  grid-template-columns: 1fr;
+  margin: 0;
+}
+.context-editor {
+  display: grid;
+  gap: 12px;
+}
+.context-editor label {
+  display: grid;
+  gap: 7px;
+}
+[data-local-lock='true'] {
+  cursor: not-allowed !important;
+  filter: saturate(0.45);
+}
 .school-panel {
   display: grid;
   justify-items: start;

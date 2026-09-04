@@ -1651,6 +1651,260 @@ function SettingsPanel({
   );
 }
 
+type SiteContextState = {
+  x: number;
+  y: number;
+  key: string;
+  label: string;
+  target: HTMLElement;
+};
+
+function markElementLock(target: HTMLElement, locked: boolean) {
+  if (locked) {
+    target.dataset.localLock = 'true';
+    target.setAttribute('aria-disabled', 'true');
+  } else {
+    delete target.dataset.localLock;
+    target.removeAttribute('aria-disabled');
+  }
+}
+
+function applyElementAppearance(
+  target: HTMLElement,
+  color: string,
+  radius: number,
+) {
+  target.style.outline = `3px solid ${color}`;
+  target.style.borderRadius = `${radius}px`;
+}
+
+function SiteContextMenu({
+  context,
+  close,
+  notify,
+}: {
+  context: SiteContextState;
+  close: () => void;
+  notify: (message: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState<SearchConfig>({
+    ...defaultSearchConfig,
+  });
+  const [mode, setMode] = useState<'menu' | 'appearance' | 'lock'>('menu');
+  const [color, setColor] = useState('#4fcfff');
+  const [radius, setRadius] = useState(12);
+  const [credential, setCredential] = useState('');
+  const [policy, setPolicy] = useState('PIN');
+  const [message, setMessage] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
+  const lockKey = `wl.element-lock.${context.key}`;
+  const isLocked =
+    context.target.dataset.localLock === 'true' ||
+    window.localStorage.getItem(lockKey) !== null;
+  const actions = [
+    { id: 'appearance', label: 'Edit appearance…' },
+    {
+      id: 'lock',
+      label: isLocked ? 'Unlock this element…' : 'Lock this element…',
+    },
+    { id: 'export', label: 'Export element description' },
+  ].filter((action) => matchesSearch(action.label, query, search));
+
+  useEffect(() => {
+    menuRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+  }, []);
+
+  async function saveLock() {
+    try {
+      const created = await createLocalCredential(credential);
+      window.localStorage.setItem(
+        lockKey,
+        JSON.stringify({ policy, record: created.record }),
+      );
+      created.key.fill(0);
+      markElementLock(context.target, true);
+      setCredential('');
+      setMessage(`${context.label} is locally locked.`);
+      notify(`${context.label} was locally locked.`);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'The local lock could not be created.',
+      );
+    }
+  }
+
+  async function removeLock() {
+    try {
+      const raw = window.localStorage.getItem(lockKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { record?: LocalCredentialRecord };
+      if (!saved.record) throw new Error('The local lock record is invalid.');
+      const key = await unlockLocalCredential(credential, saved.record);
+      if (!key) {
+        setMessage('The local unlock value did not match.');
+        return;
+      }
+      key.fill(0);
+      window.localStorage.removeItem(lockKey);
+      markElementLock(context.target, false);
+      setCredential('');
+      setMessage(`${context.label} is unlocked.`);
+      notify(`${context.label} was unlocked.`);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'The local lock could not be removed.',
+      );
+    }
+  }
+
+  return (
+    <div
+      ref={menuRef}
+      className="site-context-menu"
+      style={{ left: context.x, top: context.y }}
+      role="menu"
+      aria-label={`Actions for ${context.label}`}
+    >
+      <div className="panel-title">
+        <strong>{context.label}</strong>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close element actions"
+          onClick={close}
+        >
+          <X size={17} />
+        </Button>
+      </div>
+      {mode === 'menu' && (
+        <>
+          <SearchWorkbench
+            scope="element-menu"
+            query={query}
+            onQuery={setQuery}
+            config={search}
+            onConfig={setSearch}
+          />
+          {actions.map((action) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={action.id}
+              onClick={() => {
+                if (action.id === 'export') {
+                  downloadText(
+                    'wording-lens-element.json',
+                    JSON.stringify(
+                      { schemaVersion: 1, element: context.label },
+                      null,
+                      2,
+                    ),
+                  );
+                  notify('Element description exported locally.');
+                  close();
+                } else setMode(action.id as 'appearance' | 'lock');
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+          {actions.length === 0 && <p className="muted">No matching action.</p>}
+        </>
+      )}
+      {mode === 'appearance' && (
+        <div className="context-editor">
+          <label htmlFor="element-color">
+            Outline color
+            <input
+              id="element-color"
+              type="color"
+              value={color}
+              onChange={(event) => setColor(event.target.value)}
+            />
+          </label>
+          <label htmlFor="element-radius">
+            Corner radius: {radius}px
+            <input
+              id="element-radius"
+              type="range"
+              min="0"
+              max="40"
+              value={radius}
+              onChange={(event) => setRadius(Number(event.target.value))}
+            />
+          </label>
+          <div className="button-row">
+            <Button
+              onClick={() => {
+                applyElementAppearance(context.target, color, radius);
+                window.localStorage.setItem(
+                  `wl.element-appearance.${context.key}`,
+                  JSON.stringify({ color, radius }),
+                );
+                notify(`Appearance updated for ${context.label}.`);
+                close();
+              }}
+            >
+              Apply locally
+            </Button>
+            <Button variant="ghost" onClick={() => setMode('menu')}>
+              Back
+            </Button>
+          </div>
+        </div>
+      )}
+      {mode === 'lock' && (
+        <div className="context-editor">
+          <p>
+            This is a local interface speed bump, not protection. Clear this
+            site’s storage to recover.
+          </p>
+          {!isLocked && (
+            <label htmlFor="element-lock-policy">
+              Policy
+              <select
+                id="element-lock-policy"
+                value={policy}
+                onChange={(event) => setPolicy(event.target.value)}
+              >
+                <option>PIN</option>
+                <option>Password</option>
+                <option>PIN plus password</option>
+                <option>Password plus TOTP</option>
+                <option>PIN plus TOTP</option>
+                <option>Password plus PIN plus TOTP</option>
+              </select>
+            </label>
+          )}
+          <label htmlFor="element-lock-value">
+            Local unlock value
+            <Input
+              id="element-lock-value"
+              type="password"
+              value={credential}
+              onChange={(event) => setCredential(event.target.value)}
+            />
+          </label>
+          {message && <output>{message}</output>}
+          <div className="button-row">
+            <Button onClick={isLocked ? removeLock : saveLock}>
+              {isLocked ? 'Unlock locally' : 'Create local lock'}
+            </Button>
+            <Button variant="ghost" onClick={() => setMode('menu')}>
+              Back
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const emptySearchByTab = (): Record<TabId, SearchConfig> =>
   Object.fromEntries(
     navigation.map(({ id }) => [id, { ...defaultSearchConfig }]),
@@ -1684,6 +1938,8 @@ export default function HomePage() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [notices, setNotices] = useState<string[]>([]);
+  const [context, setContext] = useState<SiteContextState | null>(null);
+  const contextOpener = useRef<HTMLElement | null>(null);
   const tabRefs = useRef(new Map<TabId, HTMLButtonElement>());
   const headingRef = useRef<HTMLHeadingElement>(null);
   const paletteRef = useRef<HTMLDialogElement>(null);
@@ -1692,6 +1948,52 @@ export default function HomePage() {
   const search = searchByTab[tab];
   const notify = useCallback((message: string) => {
     setNotices((current) => [message, ...current].slice(0, 12));
+  }, []);
+  const openContext = useCallback((target: HTMLElement, x = 16, y = 96) => {
+    const actionable =
+      target.closest<HTMLElement>(
+        'button, input, select, textarea, a, [data-element-id], section, article, header, footer',
+      ) ?? target;
+    const rawLabel =
+      actionable.getAttribute('aria-label') ||
+      actionable.getAttribute('title') ||
+      actionable.textContent?.trim() ||
+      actionable.tagName.toLocaleLowerCase();
+    const label = rawLabel.replace(/\s+/g, ' ').slice(0, 80);
+    const key = (
+      actionable.id ||
+      actionable.dataset.elementId ||
+      `${actionable.tagName}-${label}`
+    )
+      .replace(/[^a-z0-9._-]+/gi, '-')
+      .slice(0, 120);
+    contextOpener.current = actionable;
+    try {
+      const appearance = JSON.parse(
+        window.localStorage.getItem(`wl.element-appearance.${key}`) ?? 'null',
+      ) as { color?: string; radius?: number } | null;
+      if (appearance?.color)
+        actionable.style.outline = `3px solid ${appearance.color}`;
+      if (Number.isFinite(appearance?.radius))
+        actionable.style.borderRadius = `${appearance?.radius}px`;
+      if (window.localStorage.getItem(`wl.element-lock.${key}`)) {
+        actionable.dataset.localLock = 'true';
+        actionable.setAttribute('aria-disabled', 'true');
+      }
+    } catch {
+      /* invalid optional appearance data is ignored */
+    }
+    setContext({
+      x: Math.max(8, Math.min(x, window.innerWidth - 340)),
+      y: Math.max(72, Math.min(y, window.innerHeight - 440)),
+      key,
+      label,
+      target: actionable,
+    });
+  }, []);
+  const closeContext = useCallback(() => {
+    setContext(null);
+    requestAnimationFrame(() => contextOpener.current?.focus());
   }, []);
   const chooseTab = useCallback(
     (next: TabId, focusHeading = false) => {
@@ -1737,10 +2039,17 @@ export default function HomePage() {
         event.preventDefault();
         openPalette();
       }
+      if (event.shiftKey && event.key === 'F10') {
+        event.preventDefault();
+        openContext(
+          (document.activeElement as HTMLElement | null) ?? document.body,
+        );
+      }
+      if (event.key === 'Escape' && context) closeContext();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openPalette]);
+  }, [closeContext, context, openContext, openPalette]);
   useEffect(() => {
     if (paletteOpen && paletteRef.current && !paletteRef.current.open)
       paletteRef.current.showModal();
@@ -1802,8 +2111,26 @@ export default function HomePage() {
     tabRefs.current.get(next)?.focus();
   }
   return (
-    <main className="app-shell">
-      <header className="top-bar">
+    <div
+      className="app-shell"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        openContext(event.target as HTMLElement, event.clientX, event.clientY);
+      }}
+      onClickCapture={(event) => {
+        const locked = (event.target as HTMLElement).closest<HTMLElement>(
+          '[data-local-lock="true"]',
+        );
+        if (!locked || locked.closest('.site-context-menu')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openContext(locked, 16, 96);
+        notify(
+          `${locked.getAttribute('aria-label') || locked.textContent?.trim().slice(0, 60) || 'This element'} is locally locked.`,
+        );
+      }}
+    >
+      <header className="top-bar" data-element-id="top-bar">
         <div className="brand-mark" aria-hidden="true">
           <span />
           <span />
@@ -1835,6 +2162,18 @@ export default function HomePage() {
           <Command size={18} />
           <kbd>Ctrl Shift F</kbd>
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Open actions for the focused element"
+          onClick={() =>
+            openContext(
+              (document.activeElement as HTMLElement | null) ?? document.body,
+            )
+          }
+        >
+          <Settings size={19} />
+        </Button>
       </header>
       <div
         className="tab-rail"
@@ -1863,6 +2202,7 @@ export default function HomePage() {
               onKeyDown={(event) => onTabKeyDown(event, id)}
               onClick={() => chooseTab(id)}
               key={id}
+              data-element-id={`primary-tab-${id}`}
             >
               <Icon aria-hidden="true" size={20} />
               <span>{label}</span>
@@ -1871,7 +2211,7 @@ export default function HomePage() {
         })}
         <div className="rail-spacer" role="presentation" />
       </div>
-      <section className="workspace">
+      <main className="workspace" data-element-id={`workspace-${tab}`}>
         <div className="workspace-heading">
           <div>
             <span className="kicker">WORDING LENS</span>
@@ -1952,7 +2292,7 @@ export default function HomePage() {
             />
           )}
         </section>
-      </section>
+      </main>
       <footer className="bottom-status">
         <span>
           <span className="status-dot" /> Local workspace ready
@@ -2035,6 +2375,13 @@ export default function HomePage() {
           </Button>
         </aside>
       )}
-    </main>
+      {context && (
+        <SiteContextMenu
+          context={context}
+          close={closeContext}
+          notify={notify}
+        />
+      )}
+    </div>
   );
 }
