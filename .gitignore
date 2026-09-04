@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-electron/
+coverage/
+.vite/
+.cache/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+artifacts/private/
+evidence/private/
