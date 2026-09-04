@@ -56,7 +56,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Verify release lap saps
+      - name: Verify release artifacts
         if: ${{ success() }}
         shell: pwsh
         run: |
@@ -83,10 +83,20 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Wording Lens $env:RELEASE_TAG" --notes 'Preparing verified release assets.'
-          $records = gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json databaseId,tagName,draft | ConvertFrom-Json
+          $records = gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json databaseId,tagName,isDraft | ConvertFrom-Json
           $record = @($records | Where-Object { $_.tagName -eq $env:RELEASE_TAG }) | Select-Object -First 1
           if (-not $record) { throw 'The temporary draft release was not found after creation.' }
+          if (-not $record.isDraft) { throw 'The release record was not created as a draft.' }
           "release_id=$($record.databaseId)" >> $env:GITHUB_OUTPUT
+
+      - name: Resolve the next public catalog code name
+        if: ${{ success() }}
+        id: codename
+        shell: pwsh
+        run: |
+          $metadata = pwsh -NoProfile -File scripts/select-release-codename.ps1 -Repository $env:GITHUB_REPOSITORY | ConvertFrom-Json
+          "code_name=$($metadata.codeName)" >> $env:GITHUB_OUTPUT
+          "code_name_url=$($metadata.codeNameUrl)" >> $env:GITHUB_OUTPUT
 
       - name: Upload verified release assets to the draft
         if: ${{ success() }}
@@ -114,8 +124,10 @@ jobs:
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
           STARTED_AT: ${{ steps.timing.outputs.started }}
           COMPLETED_AT: ${{ steps.completion.outputs.completed }}
+          CODE_NAME: ${{ steps.codename.outputs.code_name }}
+          CODE_NAME_URL: ${{ steps.codename.outputs.code_name_url }}
         run: |
-          pwsh -NoProfile -File scripts/write-release-notes.ps1 -OutputPath packaging/release-staging/RELEASE-NOTES.md -Tag $env:RELEASE_TAG -StartedAt $env:STARTED_AT -CompletedAt $env:COMPLETED_AT -LineCountPath packaging/release-staging/line-count.json -ReceiptPath dist/squirrel-windows/source-receipt.json -CodeName 'Classic Har Gow · 蝦餃' -CodeNameUrl 'https://github.com/Ding-Ding-Projects/dim-sum-photos/releases/latest'
+          pwsh -NoProfile -File scripts/write-release-notes.ps1 -OutputPath packaging/release-staging/RELEASE-NOTES.md -Tag $env:RELEASE_TAG -StartedAt $env:STARTED_AT -CompletedAt $env:COMPLETED_AT -LineCountPath packaging/release-staging/line-count.json -ReceiptPath dist/squirrel-windows/source-receipt.json -CodeName $env:CODE_NAME -CodeNameUrl $env:CODE_NAME_URL
           gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "body=@packaging/release-staging/RELEASE-NOTES.md"
 
       - name: Publish the draft exactly once and verify it is non-draft
@@ -128,3 +140,14 @@ jobs:
           gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "draft=false" | Out-Null
           $record = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" | ConvertFrom-Json
           if ($record.draft -ne $false -or $record.tag_name -ne $env:RELEASE_TAG) { throw 'Published release verification failed.' }
+          $required = @('RELEASES')
+          $setup = @(Get-ChildItem packaging/release-staging -Filter '*-Setup.exe' -File) | Select-Object -First 1
+          if (-not $setup) { throw 'The verified setup executable is missing from release staging.' }
+          $required += $setup.Name
+          $required += @(Get-ChildItem packaging/release-staging -Filter '*.nupkg' -File | ForEach-Object Name)
+          foreach ($name in $required) {
+            $asset = @($record.assets | Where-Object { $_.name -eq $name }) | Select-Object -First 1
+            $local = Join-Path 'packaging/release-staging' $name
+            if (-not $asset -or [int64]$asset.size -le 0 -or -not (Test-Path -LiteralPath $local)) { throw "Published release asset is missing or empty: $name" }
+            if ([int64]$asset.size -ne [int64](Get-Item -LiteralPath $local).Length) { throw "Published release asset size differs from the verified local file: $name" }
+          }
