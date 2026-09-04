@@ -67,10 +67,23 @@ try {
     & $npmCmd ci --no-audit --no-fund --ignore-scripts
   } else {
     Write-Phase 'Installing declared npm dependencies from package.json.'
-    & $npmCmd install --no-audit --no-fund --ignore-scripts
+    & $npmCmd install --no-audit --no-fund --ignore-scripts --package-lock=false
   }
   if ($LASTEXITCODE -ne 0) { throw "npm dependency installation exited with $LASTEXITCODE." }
-  Write-Phase 'Ensuring the pinned electron-builder release tool is available.'
-  & $npmCmd install --no-audit --no-fund --ignore-scripts --no-save --package-lock=false 'electron-builder@26.15.3'
+  Write-Phase 'Installing the pinned electron-builder release tool in the user-local toolchain.'
+  & $npmCmd install --global --prefix $toolRoot --no-audit --no-fund --ignore-scripts 'electron-builder@26.15.3'
   if ($LASTEXITCODE -ne 0) { throw "electron-builder installation exited with $LASTEXITCODE." }
 } finally { Pop-Location }
+
+$env:PATH = "$toolRoot;$toolRoot\node_modules\.bin;$env:PATH"
+$electronPackage = Join-Path $root 'node_modules\electron\package.json'
+if (-not (Test-Path -LiteralPath $electronPackage)) { throw "The declared Electron dependency is missing: $electronPackage" }
+$electronInstall = Join-Path $root 'node_modules\electron\install.js'
+$electronExe = Join-Path $root 'node_modules\electron\dist\electron.exe'
+if (-not (Test-Path -LiteralPath $electronExe)) {
+  Write-Phase 'Running the exact Electron package install step to materialize the platform binary.'
+  & $nodeExe $electronInstall
+  if ($LASTEXITCODE -ne 0) { throw "Electron package installation exited with $LASTEXITCODE." }
+}
+if (-not (Test-Path -LiteralPath $electronExe)) { throw "Electron was declared and its install step completed, but the binary is missing: $electronExe" }
+Write-Phase "Verified Electron binary at $electronExe."
