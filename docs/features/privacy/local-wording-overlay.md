@@ -70,8 +70,12 @@ be passed to that durable notification route.
 
 History snapshots use a random per-installation key sealed by the platform provider.
 Sensitive snapshots are refused when persistent encrypted storage is unavailable.
-This does not yet complete the separate local Git history or persistent toy-lock
-requirements; those remain open in the feature inventory.
+Toy-lock factors are encrypted through that same platform provider in the private
+credential directory. Redacted lock metadata is restored on startup and always
+begins locked. Invalid stored metadata reports local recovery as required instead
+of accepting new locks over a damaged inventory. This uses platform-protected
+encrypted files; a native credential-manager adapter and the separate local Git
+history manager remain open requirements in the feature inventory.
 
 ## Verification
 

@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useState } from "react";
+import { StrictMode, useEffect, useMemo, useState, type JSX } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BUILD_PROVENANCE,
@@ -283,26 +283,26 @@ function Overview({
       <div className="stats-grid">
         <StatCard
           label="ACTIVE WORK"
-          value="0"
-          detail="Nothing is running"
-          tone="ready"
+          value="Unknown"
+          detail="Open Queue to read current operation state"
+          tone="waiting"
         />
         <StatCard
           label="PROJECTS"
-          value="0"
-          detail="Open a local folder to begin"
+          value="Unknown"
+          detail="Open Projects to inspect a selected folder"
         />
         <StatCard
           label="LOCAL MODELS"
           value="—"
-          detail="Local service not connected"
+          detail="Open Local Models to check runtime health"
           tone="waiting"
         />
         <StatCard
           label="NOTIFICATIONS"
-          value="0"
-          detail="All caught up"
-          tone="ready"
+          value="Unknown"
+          detail="Open Notifications to read current records"
+          tone="waiting"
         />
       </div>
       <SurfaceCard>
@@ -1366,6 +1366,7 @@ export function Notifications({
 }
 
 function Status({ provenance }: { provenance: AppProvenance }): JSX.Element {
+  const bridgeActive = Boolean(window.desktopBridge);
   return (
     <div className="status-grid">
       <SurfaceCard>
@@ -1374,24 +1375,24 @@ function Status({ provenance }: { provenance: AppProvenance }): JSX.Element {
             <h2>Live session status</h2>
             <p>Current evidence is shown with its real state.</p>
           </div>
-          <StatusPill label="Local" />
+          <StatusPill label={bridgeActive ? "Bridge present" : "Bridge unavailable"} tone={bridgeActive ? "ready" : "waiting"} />
         </div>
         <div className="status-banner">
-          <strong>Ready for local work</strong>
-          <span>External status bridge not connected</span>
+          <strong>{bridgeActive ? "Local bridge detected" : "Local bridge unavailable"}</strong>
+          <span>External status has not been queried.</span>
         </div>
         <div className="evidence-list">
           <div>
             <span>Build provenance</span>
-            <StatusPill label="Loaded" />
+            <StatusPill label={isValidProvenance(provenance) ? "Loaded" : "Unavailable"} tone={isValidProvenance(provenance) ? "ready" : "waiting"} />
           </div>
           <div>
             <span>Runtime bridge</span>
-            <StatusPill label="Available" />
+            <StatusPill label={bridgeActive ? "Present" : "Unavailable"} tone={bridgeActive ? "ready" : "waiting"} />
           </div>
           <div>
             <span>Remote status</span>
-            <StatusPill label="Unconnected" tone="waiting" />
+            <StatusPill label="Not queried" tone="waiting" />
           </div>
         </div>
       </SurfaceCard>
@@ -2407,7 +2408,7 @@ export function App(): JSX.Element {
         <span>
           <i className="footer-dot" aria-hidden="true" /> Local only
         </span>
-        <span>Typed bridge active</span>
+        <span>{bridge ? "Typed bridge present" : "Typed bridge unavailable"}</span>
         <span>Ctrl+Shift+F palette</span>
         <span className="footer-spacer" />
         <span>Ready</span>

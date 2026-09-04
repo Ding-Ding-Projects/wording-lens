@@ -14,7 +14,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client", "vitest/globals"]
+    "types": ["vite/client", "vitest/globals", "node"],
+    "paths": { "@core/*": ["./packages/core/src/*"] }
   },
   "include": ["apps/desktop/src", "apps/desktop/.generated", "apps/desktop/tests", "packages/core/src", "packages/core/tests", "vite.config.ts"]
 }

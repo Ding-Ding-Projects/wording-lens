@@ -10,7 +10,7 @@ import type { ChatParameters, ChatSession, RuntimeHealth } from "../../ollama/sr
 import { validateSchedule, resolveScheduledValues, validateExternalValues, validateHomeAssistantState, type ScheduleSchema, type ScheduledValues } from "../../scheduling/schedule.js";
 import { AppendOnlyHistory, type HistoryAction, type HistoryBackend, type HistoryRevision } from "../../history/history.js";
 import type { VocabularyDocument } from "../../integration/vocabulary-boundary.js";
-import { MemoryCredentialVault, ToyLockManager, buildOtpAuthUri, verifyTotpCode, type LockAttempt, type LockRecord, type NoveltyLockPolicy, type UnlockDuration, type TotpOptions } from "../../security/index.js";
+import { ToyLockManager, buildOtpAuthUri, verifyTotpCode, type CredentialVault, type LockAttempt, type LockRecord, type NoveltyLockPolicy, type UnlockDuration, type TotpOptions } from "../../security/index.js";
 import { LocalSupportTicketStore, type SupportTicket, type TicketCategory, type TicketSeverity } from "../../security/support-tickets.js";
 import { UnlockLadderService, type LadderAnswer, type LadderIssue, type LadderResult, type LadderRung } from "../../security/unlock-ladder.js";
 import { DownloadStateEngine, type DownloadPublicRecord, type DownloadStartRequest, type BridgeStatus } from "../../downloads/src/index.js";
@@ -158,6 +158,31 @@ async function atomicWrite(path: string, content: string | Uint8Array): Promise<
 
 async function atomicJson(path: string, value: unknown): Promise<void> { await atomicWrite(path, JSON.stringify(value, null, 2)); }
 
+class PlatformProtectedVault implements CredentialVault {
+  constructor(private readonly root: string, private readonly crypto: DesktopServicesOptions['vocabularyCrypto']) {}
+  private path(reference: string): string {
+    if (!/^[a-z0-9-]{1,64}:(pin|password|totp)$/i.test(reference)) throw new Error('Invalid local credential reference');
+    return join(this.root, reference.replace(':', '-') + '.bin');
+  }
+  async setSecret(reference: string, value: Uint8Array): Promise<void> {
+    if (!this.crypto) throw new Error('Platform encrypted storage is unavailable');
+    if (value.length > 4096) throw new Error('Credential record exceeds its storage bound');
+    await atomicWrite(this.path(reference), this.crypto.seal(value));
+  }
+  async getSecret(reference: string): Promise<Uint8Array | null> {
+    if (!this.crypto) throw new Error('Platform encrypted storage is unavailable');
+    try {
+      const value = await readFile(this.path(reference));
+      if (value.length > 16384) throw new Error('Credential record exceeds its storage bound');
+      return this.crypto.unseal(value);
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null;
+      throw new Error('Unable to read the protected credential record');
+    }
+  }
+  async deleteSecret(reference: string): Promise<void> { await rm(this.path(reference), { force: true }); }
+}
+
 class JsonStore<T> {
   public constructor(private readonly path: string, private readonly fallback: T) {}
   public async load(): Promise<T> {
@@ -217,6 +242,7 @@ export class DesktopServices {
   private vocabularyEpoch = 0;
   private vocabularyWrite: Promise<void> = Promise.resolve();
   private configuringVocabulary = false;
+  private lockStoreAvailable = true;
 
   public constructor(options: DesktopServicesOptions) {
     this.now = options.now ?? (() => new Date());
@@ -224,7 +250,7 @@ export class DesktopServices {
     this.settings = new JsonStore(join(this.dataDirectory, "settings.json"), defaultSettings);
     this.notifications = new JsonStore(join(this.dataDirectory, "notifications.json"), []);
     this.updater = new JsonStore(join(this.dataDirectory, "updater.json"), { state: "idle", unsigned: true });
-    this.locks = new ToyLockManager(new MemoryCredentialVault());
+    this.locks = new ToyLockManager(new PlatformProtectedVault(join(this.dataDirectory, 'protected-credentials'), options.vocabularyCrypto));
     this.history = new AppendOnlyHistory(new JsonHistoryBackend(join(this.dataDirectory, "history.json")), randomBytes(32));
     this.registry = options.registry ?? createDefaultAdapterRegistry();
     this.ollamaBaseUrl = options.ollamaBaseUrl ?? "http://127.0.0.1:11434";
@@ -244,6 +270,15 @@ export class DesktopServices {
     await this.initializeHistoryKey();
     await this.loadVocabularyVerifier();
     await this.loadVocabularyCache();
+    try {
+      const raw = await readFile(join(this.dataDirectory, 'locks.json'), 'utf8');
+      if (raw.length > 2_000_000) throw new Error('Saved lock inventory is oversized');
+      const records = JSON.parse(raw) as unknown;
+      if (!Array.isArray(records)) throw new Error('Saved lock inventory is invalid');
+      this.locks.restoreRecords(records as LockRecord[]);
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) this.lockStoreAvailable = false;
+    }
   }
 
   public getSettings(): AppSettings { return structuredClone(this.settingsValue); }
@@ -535,13 +570,22 @@ export class DesktopServices {
     return output + renderAliases(source.slice(cursor), this.vocabulary);
   }
 
-  public async createLock(targetId: string, policy: NoveltyLockPolicy, duration: UnlockDuration, factors: { pin?: string; password?: string; totpSecret?: Uint8Array }): Promise<PublicLockRecord> { return publicLockRecord(await this.locks.createLock(boundedText(targetId, "lock target", 200), policy, duration, factors)); }
+  public async createLock(targetId: string, policy: NoveltyLockPolicy, duration: UnlockDuration, factors: { pin?: string; password?: string; totpSecret?: Uint8Array }): Promise<PublicLockRecord> {
+    if (!this.lockStoreAvailable) throw new Error('Saved lock storage is unavailable; use local recovery');
+    const record = await this.locks.createLock(boundedText(targetId, "lock target", 200), policy, duration, factors);
+    try { await atomicJson(join(this.dataDirectory, 'locks.json'), this.locks.listLocks()); }
+    catch { await this.locks.removeLock(record.id); throw new Error('Unable to save the local lock'); }
+    return publicLockRecord(record);
+  }
   public listLocks(): readonly PublicLockRecord[] {
     return this.locks.listLocks().map(publicLockRecord);
   }
   public unlockLock(lockId: string, attempt: LockAttempt = {}) { return this.locks.unlock(boundedText(lockId, "lock id", 200), attempt); }
   public relock(lockId: string): void { this.locks.relock(boundedText(lockId, "lock id", 200)); }
-  public async removeLock(lockId: string): Promise<void> { await this.locks.removeLock(boundedText(lockId, "lock id", 200)); }
+  public async removeLock(lockId: string): Promise<void> {
+    await this.locks.removeLock(boundedText(lockId, "lock id", 200));
+    await atomicJson(join(this.dataDirectory, 'locks.json'), this.locks.listLocks());
+  }
   public createTotpPairing(input: Parameters<typeof buildOtpAuthUri>[0]): { uri: string; issuer: string; account: string; algorithm: string; digits: number; periodSeconds: number } {
     const uri = buildOtpAuthUri(input);
     return { uri, issuer: input.issuer, account: input.account, algorithm: input.algorithm ?? "SHA1", digits: input.digits ?? 6, periodSeconds: input.periodSeconds ?? 30 };

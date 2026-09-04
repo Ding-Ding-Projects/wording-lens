@@ -192,4 +192,16 @@ describe("desktop services", () => {
     expect(services.downloadStatus()[0]).toMatchObject({ captureId: "capture-1", fileName: "[redacted]", source: "[redacted]" });
     expect(JSON.stringify(await services.exportHistory())).not.toContain("JBSWY3DPEHPK3PXP");
   });
+
+  it("restores a saved lock in the locked state after restart", async () => {
+    const { root, services } = await service();
+    const lock = await services.createLock('settings.theme', 'PIN', { kind: 'until-app-closes' }, { pin: '2468' });
+    expect((await services.unlockLock(lock.id, { pin: '2468' })).unlocked).toBe(true);
+    const restarted = new DesktopServices({ dataDirectory: root, vocabularyCrypto: { seal: (bytes) => new Uint8Array(bytes).map((byte) => byte ^ 0xa5), unseal: (bytes) => new Uint8Array(bytes).map((byte) => byte ^ 0xa5) } });
+    await restarted.ready();
+    expect(restarted.listLocks()).toHaveLength(1);
+    expect((await restarted.unlockLock(lock.id, { pin: '0000' })).unlocked).toBe(false);
+    expect((await restarted.unlockLock(lock.id, { pin: '2468' })).unlocked).toBe(true);
+    expect(await readFile(join(root, 'locks.json'), 'utf8')).not.toContain('2468');
+  });
 });

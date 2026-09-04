@@ -117,6 +117,22 @@ export class ToyLockManager {
     return [...this.records.values()].map((record) => structuredClone(record))
   }
 
+  restoreRecords(records: readonly LockRecord[]): void {
+    if (records.length > 1000) throw new Error('Too many saved locks');
+    const restored = new Map<string, LockRecord>();
+    for (const record of records) {
+      if (!record || !/^[a-z0-9-]{1,64}$/i.test(record.id) || restored.has(record.id) || !record.targetId || record.targetId.length > 200 || !NOVELTY_LOCK_POLICIES.includes(record.policy)) throw new Error('Saved lock metadata is invalid');
+      durationMs(record.duration);
+      for (const factor of ['pin', 'password', 'totp'] as const) {
+        if (requires(record.policy, factor) && record.credentialReferences?.[factor] !== `${record.id}:${factor}`) throw new Error('Saved lock credential reference is invalid');
+      }
+      restored.set(record.id, structuredClone(record));
+    }
+    this.records.clear();
+    this.unlocked.clear();
+    for (const [id, record] of restored) this.records.set(id, record);
+  }
+
   isLocked(lockId: string, nowMs = Date.now(), surfaceSessionId?: string): boolean {
     const record = this.records.get(lockId)
     if (!record) return false

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type JSX } from "react";
 
 export type ScreenId = "overview" | "projects" | "operations" | "queue" | "files" | "models" | "authenticator" | "history" | "documentation" | "changelog" | "notifications" | "status" | "settings";
 export type LanguageMode = "en" | "zh-Hant" | "bilingual";

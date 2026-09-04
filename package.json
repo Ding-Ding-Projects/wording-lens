@@ -10,7 +10,8 @@
   "scripts": {
     "generate:build-metadata": "node apps/desktop/electron/generate-build-metadata.mjs",
     "build": "npm run generate:build-metadata && tsc -p tsconfig.main.json && vite build",
-    "test": "npm run generate:build-metadata && npm run test:vitest && npm run test:node && npm run test:operations",
+    "typecheck:renderer": "tsc -p tsconfig.renderer.json",
+    "test": "npm run generate:build-metadata && npm run typecheck:renderer && npm run test:vitest && npm run test:node && npm run test:operations",
     "test:vitest": "vitest run",
     "test:node": "node --test \"tests/vocabulary/*.test.mjs\"",
     "test:operations": "tsc -p packages/operations/tsconfig.json && node --test tests/operations/operations.test.mjs",
