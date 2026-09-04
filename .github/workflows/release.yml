@@ -1,0 +1,95 @@
+name: Build and publish Windows release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-2025
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Record workflow start
+        id: timing
+        shell: pwsh
+        run: |
+          $run = gh run view $env:GITHUB_RUN_ID --json startedAt --jq .startedAt
+          "started=$run" >> $env:GITHUB_OUTPUT
+
+      - name: Bootstrap declared dependencies
+        run: .\download-dependencies.bat /s
+
+      - name: Build the application
+        run: .\build.bat /s
+
+      - name: Build and verify the unsigned Squirrel.Windows installer
+        run: .\build-installer.bat /s
+
+      - name: Collect release files and evidence
+        if: ${{ always() }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path packaging/release-staging | Out-Null
+          if (Test-Path dist/squirrel-windows) {
+            pwsh -NoProfile -File scripts/collect-release-assets.ps1 -OutputPath dist/squirrel-windows -DestinationPath packaging/release-staging
+          }
+          pwsh -NoProfile -File scripts/count-lines.ps1 -OutputPath packaging/release-staging/line-count.json
+
+      - name: Upload safe build outputs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: windows-release-evidence-${{ github.run_id }}
+          path: |
+            packaging/release-staging/**
+            dist/squirrel-windows/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Verify release lap saps
+        if: ${{ success() }}
+        shell: pwsh
+        run: |
+          $sha = git rev-parse HEAD
+          $receipt = Get-ChildItem dist/squirrel-windows/source-receipt.json
+          if (-not $receipt) { throw 'The source receipt is missing.' }
+          pwsh -NoProfile -File scripts/verify-squirrel-package.ps1 -OutputPath dist/squirrel-windows -ExpectedCommit $sha | Set-Content packaging/release-staging/package-verification.json
+
+      - name: Select unique release tag
+        if: ${{ success() }}
+        id: release
+        shell: pwsh
+        run: |
+          $tag = pwsh -NoProfile -File scripts/new-release-tag.ps1 -Version '0.1.0' -RunNumber $env:GITHUB_RUN_NUMBER -RunAttempt $env:GITHUB_RUN_ATTEMPT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          git tag $tag $env:GITHUB_SHA
+          git push origin $tag
+
+      - name: Write release notes
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          STARTED_AT: ${{ steps.timing.outputs.started }}
+        run: |
+          $completed = (Get-Date).ToUniversalTime().ToString('o')
+          "completed=$completed" >> $env:GITHUB_OUTPUT
+          pwsh -NoProfile -File scripts/write-release-notes.ps1 -OutputPath packaging/release-staging/RELEASE-NOTES.md -Tag $env:RELEASE_TAG -StartedAt $env:STARTED_AT -CompletedAt $completed -LineCountPath packaging/release-staging/line-count.json -ReceiptPath dist/squirrel-windows/source-receipt.json
+
+      - name: Publish the unique release
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          $assets = @(Get-ChildItem packaging/release-staging -File | Where-Object { $_.Name -match '(-Setup\.exe$|^RELEASES$|\.nupkg$|\.nupkg\.sha512$)' } | ForEach-Object FullName)
+          if ($assets.Count -lt 3) { throw 'Release asset collection did not find Setup.exe, RELEASES, and a full .nupkg.' }
+          gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --title "Wording Lens $env:RELEASE_TAG" --notes-file packaging/release-staging/RELEASE-NOTES.md $assets
