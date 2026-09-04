@@ -21,7 +21,7 @@ const requiredPageBoundaries = [
   "event.key === 'Home'",
   "event.key === 'End'",
   'config={search}',
-  'matchesSearch(',
+  'useBoundedFilter(',
   'value={paletteQuery}',
   'onChange={(event) => setPaletteQuery(event.target.value)}',
   'paletteRef.current.showModal()',

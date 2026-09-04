@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useState, type JSX } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BUILD_PROVENANCE,
@@ -37,6 +37,7 @@ import {
   type ScreenId,
 } from "./components";
 import "./styles.css";
+import { useSurfaceSearch } from './surface-search';
 
 const labels: Record<ScreenId, Copy> = {
   overview: { en: "Overview", zh: "總覽" },
@@ -166,7 +167,7 @@ function SurfaceHeader({
   setQuery: (value: string) => void;
   regex: boolean;
   setRegex: (value: boolean) => void;
-  onApplyRegex: (pattern: string) => void;
+  onApplyRegex: (pattern: string, flags: string) => void;
 }): JSX.Element {
   return (
     <div className="page-header">
@@ -2152,6 +2153,9 @@ export function App(): JSX.Element {
   const [query, setQuery] = useState("");
   const [regex, setRegex] = useState(false);
   const [regexPattern, setRegexPattern] = useState("");
+  const [regexFlags, setRegexFlags] = useState('iu');
+  const contentRef = useRef<HTMLDivElement>(null);
+  const searchStatus = useSurfaceSearch(contentRef, screen, query, regexPattern, regexFlags);
   const [notifications, setNotifications] = useState<string[]>([]);
   const [updater, setUpdater] = useState<UpdaterState>({
     state: "idle",
@@ -2399,9 +2403,10 @@ export function App(): JSX.Element {
             setQuery={setQuery}
             regex={regex}
             setRegex={setRegex}
-            onApplyRegex={setRegexPattern}
+            onApplyRegex={(pattern, flags) => { setRegexPattern(pattern); setRegexFlags(flags); }}
           />
-          {body}
+          <p role="status">{searchStatus}</p>
+          <div ref={contentRef}>{body}</div>
         </main>
       </div>
       <footer className="status-footer">

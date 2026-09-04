@@ -43,7 +43,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -58,6 +57,7 @@ import {
 } from '@/lib/local-private';
 import { SITE_PROVENANCE } from '@/.generated/site-provenance';
 import { describeElement, PrivateOperationEpoch } from '@/lib/private-boundary';
+import { useBoundedFilter, useRegexPreview } from '@/lib/use-regex';
 
 type TabId =
   | 'home'
@@ -90,7 +90,7 @@ const operationCards = [
     title: 'Source control',
     detail:
       'Review repositories, branches, changes, and verified remote state.',
-    state: 'Ready',
+    state: 'Desktop capability',
     tone: 'good',
   },
   {
@@ -98,7 +98,7 @@ const operationCards = [
     title: 'Containers',
     detail:
       'Inspect configured container hosts before running allowlisted actions.',
-    state: 'Not configured',
+    state: 'Desktop capability',
     tone: 'quiet',
   },
   {
@@ -106,14 +106,14 @@ const operationCards = [
     title: 'Local models',
     detail:
       'Check the local runtime, models, hardware fit, and queued downloads.',
-    state: 'Checking locally',
+    state: 'Desktop capability',
     tone: 'active',
   },
   {
     icon: FileCog,
     title: 'Files and conversion',
     detail: 'Queue bounded local conversions with previews and validation.',
-    state: 'Ready',
+    state: 'Desktop capability',
     tone: 'good',
   },
 ];
@@ -154,9 +154,9 @@ const featureGroups = [
 ];
 
 const operationRows = [
-  ['Refresh local repository state', 'Source control', 'Read only', 'Ready'],
-  ['Inspect local model runtime', 'Local models', 'Read only', 'Ready'],
-  ['Validate documentation output', 'Documentation', 'Read only', 'Ready'],
+  ['Refresh local repository state', 'Source control', 'Read only', 'Documented'],
+  ['Inspect local model runtime', 'Local models', 'Read only', 'Documented'],
+  ['Validate documentation output', 'Documentation', 'Read only', 'Documented'],
   ['Build Windows package', 'Build', 'Writes output', 'Needs clean source'],
   ['Publish a release', 'GitHub', 'External write', 'Needs review'],
 ];
@@ -240,33 +240,14 @@ function safeSearchFlags(flags: string): string {
   return [...new Set(flags.replace(/[^dgimsuvy]/g, ''))].join('');
 }
 
-function riskyPattern(pattern: string): boolean {
-  return (
-    /\([^()]*(?:[+*]|\{\d+,\})[^()]*\)(?:[+*]|\{\d+,\})/.test(pattern) ||
-    /\([^()|]+\|[^()|]+\)(?:[+*]|\{\d+,\})/.test(pattern)
-  );
-}
-
 function compileSearch(query: string, config: SearchConfig): RegExp | null {
   if (!config.regex || !query) return null;
-  if (query.length > 4096 || riskyPattern(query)) return null;
+  if (query.length > 4096) return null;
   try {
     return new RegExp(query, safeSearchFlags(config.flags));
   } catch {
     return null;
   }
-}
-
-function matchesSearch(
-  text: string,
-  query: string,
-  config: SearchConfig,
-): boolean {
-  if (!query) return true;
-  if (!config.regex)
-    return text.toLocaleLowerCase().includes(query.toLocaleLowerCase());
-  const expression = compileSearch(query, config);
-  return expression ? expression.test(text.slice(0, 1_000_000)) : false;
 }
 
 function SearchWorkbench({
@@ -286,38 +267,21 @@ function SearchWorkbench({
     if (!config.regex || !query) return true;
     return compileSearch(query, config) !== null;
   }, [config, query]);
-  const sampleMatches = useMemo(() => {
-    if (!config.sample || !query || !valid) return [] as string[];
-    if (!config.regex) {
-      return config.sample
-        .toLocaleLowerCase()
-        .includes(query.toLocaleLowerCase())
-        ? [query]
-        : [];
-    }
-    const flags = safeSearchFlags(config.flags).replace(/[gy]/g, '') + 'g';
-    try {
-      return Array.from(
-        config.sample.slice(0, 1_000_000).matchAll(new RegExp(query, flags)),
-        (match) => match[0],
-      ).slice(0, 1000);
-    } catch {
-      return [] as string[];
-    }
-  }, [config.flags, config.regex, config.sample, query, valid]);
-  const preview = useMemo(() => {
-    if (!config.sample || !query || !valid) return config.sample;
-    if (!config.regex)
-      return config.sample.replaceAll(query, config.replacement);
-    try {
-      return config.sample.replace(
-        new RegExp(query, safeSearchFlags(config.flags)),
-        config.replacement,
-      );
-    } catch {
-      return config.sample;
-    }
-  }, [config, query, valid]);
+  const evaluation = useRegexPreview(
+    query,
+    config.flags,
+    config.sample,
+    config.replacement,
+    config.regex && valid,
+  );
+  const sampleCount = config.regex
+    ? evaluation.count
+    : Number(Boolean(query) && config.sample.includes(query));
+  const preview = config.regex
+    ? evaluation.replacement
+    : query
+      ? config.sample.replaceAll(query, config.replacement)
+      : config.sample;
   const regexId = `${scope}-search-regex`;
   const flagsId = `${scope}-search-flags`;
   const sampleId = `${scope}-search-sample`;
@@ -329,6 +293,7 @@ function SearchWorkbench({
         <Input
           aria-label="Search this page"
           value={query}
+          maxLength={4096}
           onChange={(event) => onQuery(event.target.value)}
           placeholder="Search this page"
         />
@@ -382,7 +347,7 @@ function SearchWorkbench({
             <Input
               id={sampleId}
               value={config.sample}
-              maxLength={1_000_000}
+              maxLength={65_536}
               onChange={(event) =>
                 onConfig((value) => ({ ...value, sample: event.target.value }))
               }
@@ -393,6 +358,7 @@ function SearchWorkbench({
             <Input
               id={replacementId}
               value={config.replacement}
+              maxLength={256}
               onChange={(event) =>
                 onConfig((value) => ({
                   ...value,
@@ -403,7 +369,8 @@ function SearchWorkbench({
           </label>
           <output className={valid ? 'valid' : 'invalid'}>
             {valid
-              ? `${sampleMatches.length} bounded sample matches. Preview: ${preview || 'empty'}`
+              ? evaluation.error ||
+                `${sampleCount} bounded sample matches. Preview: ${preview || 'empty'}`
               : 'Pattern is invalid and will not run.'}
           </output>
         </section>
@@ -454,8 +421,12 @@ function HomePanel({
   query: string;
   search: SearchConfig;
 }) {
-  const filteredCards = operationCards.filter((card) =>
-    matchesSearch(`${card.title} ${card.detail} ${card.state}`, query, search),
+  const filteredCards = useBoundedFilter(
+    operationCards,
+    operationCards.map((card) => `${card.title} ${card.detail} ${card.state}`),
+    query,
+    search.regex,
+    search.flags,
   );
   return (
     <div className="panel-stack">
@@ -475,8 +446,8 @@ function HomePanel({
       <section aria-labelledby="adapter-heading">
         <div className="section-heading">
           <div>
-            <span className="kicker">ADAPTER HEALTH</span>
-            <h2 id="adapter-heading">Connected work surfaces</h2>
+            <span className="kicker">PRODUCT CAPABILITIES</span>
+            <h2 id="adapter-heading">Installed application features</h2>
           </div>
           <Button variant="ghost" onClick={() => setTab('status')}>
             View status <ChevronRight aria-hidden="true" size={17} />
@@ -533,8 +504,12 @@ function OperationsPanel({
   const [selected, setSelected] = useState<string[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewAction, setPreviewAction] = useState(operationRows[0][0]);
-  const filteredRows = operationRows.filter((row) =>
-    matchesSearch(row.join(' '), query, search),
+  const filteredRows = useBoundedFilter(
+    operationRows,
+    operationRows.map((row) => row.join(' ')),
+    query,
+    search.regex,
+    search.flags,
   );
   const toggle = (name: string) =>
     setSelected((current) =>
@@ -657,8 +632,12 @@ function FeaturesPanel({
   query: string;
   search: SearchConfig;
 }) {
-  const filtered = featureGroups.filter(([title, detail]) =>
-    matchesSearch(`${title} ${detail}`, query, search),
+  const filtered = useBoundedFilter(
+    featureGroups,
+    featureGroups.map((row) => row.join(' ')),
+    query,
+    search.regex,
+    search.flags,
   );
   return (
     <div className="feature-grid">
@@ -695,8 +674,12 @@ function DocumentationPanel({
     'Authenticator and history',
     'Builds, updates, and releases',
   ];
-  const filtered = articles.filter((article) =>
-    matchesSearch(article, query, search),
+  const filtered = useBoundedFilter(
+    articles,
+    articles,
+    query,
+    search.regex,
+    search.flags,
   );
   const [selected, setSelected] = useState(articles[0]);
   return (
@@ -752,14 +735,17 @@ function StatusPanel({
   query: string;
   search: SearchConfig;
 }) {
-  if (
-    !matchesSearch(
-      'current build foundation progress verified implementation workstreams published private data',
-      query,
-      search,
-    )
-  )
-    return <NoMatches query={query} />;
+  const content = [
+    'current build foundation progress verified implementation workstreams published private data',
+  ];
+  const visible = useBoundedFilter(
+    content,
+    content,
+    query,
+    search.regex,
+    search.flags,
+  );
+  if (visible.length === 0) return <NoMatches query={query} />;
   return (
     <div className="panel-stack">
       <section className="surface-card status-hero">
@@ -769,24 +755,23 @@ function StatusPanel({
           <p>The first public release has not been published.</p>
         </div>
         <StatusPill tone="active">Building</StatusPill>
-        <Progress value={28} />
-        <span>28% of the current implementation plan</span>
+        <span>Release and runtime verification are pending.</span>
       </section>
       <div className="card-grid">
         <article className="surface-card metric">
           <CheckCircle2 size={22} />
-          <strong>4</strong>
-          <span>Verified foundation items</span>
+          <strong>{SITE_PROVENANCE.version || 'Unavailable'}</strong>
+          <span>Build version</span>
         </article>
         <article className="surface-card metric">
           <Workflow size={22} />
-          <strong>8</strong>
-          <span>Implementation workstreams</span>
+          <strong>Pending</strong>
+          <span>Published installer verification</span>
         </article>
         <article className="surface-card metric">
           <ShieldCheck size={22} />
-          <strong>0</strong>
-          <span>Published private-data findings</span>
+          <strong>Local only</strong>
+          <span>Personal wording stays in this browser</span>
         </article>
       </div>
     </div>
@@ -800,14 +785,17 @@ function DownloadsPanel({
   query: string;
   search: SearchConfig;
 }) {
-  if (
-    !matchesSearch(
-      'verified installer unsigned Windows Squirrel download unavailable publisher warning',
-      query,
-      search,
-    )
-  )
-    return <NoMatches query={query} />;
+  const content = [
+    'verified installer unsigned Windows Squirrel download unavailable publisher warning',
+  ];
+  const visible = useBoundedFilter(
+    content,
+    content,
+    query,
+    search.regex,
+    search.flags,
+  );
+  if (visible.length === 0) return <NoMatches query={query} />;
   return (
     <section className="surface-card empty-panel">
       <div className="icon-tile">
@@ -1153,19 +1141,36 @@ function SettingsPanel({
     ['One thing at a time', oneThing, setOneThing],
     ['Momentum', momentum, setMomentum],
   ];
-  const atlasEntries = useMemo(
-    () =>
-      Object.entries(privateVocabulary?.entries ?? {}).filter(([key, value]) =>
-        `${key} ${value}`.toLowerCase().includes(atlasQuery.toLowerCase()),
-      ),
-    [atlasQuery, privateVocabulary],
+  const atlasSource = Object.entries(privateVocabulary?.entries ?? {});
+  const atlasEntries = useBoundedFilter(
+    atlasSource,
+    atlasSource.map(([key, value]) => `${key} ${value}`),
+    atlasQuery,
+    atlasSearch.regex,
+    atlasSearch.flags,
   );
   const atlasPages = Math.max(1, Math.ceil(atlasEntries.length / 50));
   const visibleAtlasEntries = atlasEntries.slice(
     atlasPage * 50,
     atlasPage * 50 + 50,
   );
-  const showSetting = (text: string) => matchesSearch(text, query, search);
+  const settingsIndex = [
+    'school mode rename unlock credential',
+    'language tone emoji English Cantonese bilingual',
+    'private wording local file upload replace clear reset atlas',
+    'appearance theme density accent color editor',
+    'attention focus low stimulation time awareness one thing momentum',
+    'security recovery element locks authenticator history support',
+    'narration voice speech rate pitch schedule settings',
+  ];
+  const visibleSettings = useBoundedFilter(
+    settingsIndex,
+    settingsIndex,
+    query,
+    search.regex,
+    search.flags,
+  );
+  const showSetting = (text: string) => visibleSettings.includes(text);
   const schoolCard = (
     <section className="surface-card settings-card private-settings">
       <div className="settings-title">
@@ -1756,14 +1761,21 @@ function SiteContextMenu({
   const isLocked =
     context.target.dataset.localLock === 'true' ||
     window.localStorage.getItem(lockKey) !== null;
-  const actions = [
+  const actionSource = [
     { id: 'appearance', label: 'Edit appearance…' },
     {
       id: 'lock',
       label: isLocked ? 'Unlock this element…' : 'Lock this element…',
     },
     { id: 'export', label: 'Export element description' },
-  ].filter((action) => matchesSearch(action.label, query, search));
+  ];
+  const actions = useBoundedFilter(
+    actionSource,
+    actionSource.map((action) => action.label),
+    query,
+    search.regex,
+    search.flags,
+  );
 
   useEffect(() => {
     menuRef.current?.querySelector<HTMLInputElement>('input')?.focus();
