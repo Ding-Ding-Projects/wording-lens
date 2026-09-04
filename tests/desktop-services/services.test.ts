@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DesktopServices } from "../../packages/desktop-services/src/index.js";
+import { generateTotpCode } from "../../packages/security/totp.js";
 
 const roots: string[] = [];
 
@@ -64,6 +65,33 @@ describe("desktop services", () => {
     const duplicate = new TextEncoder().encode('{"schemaVersion":1,"entries":{"A":"one","A":"two"}}');
     await expect(services.saveVocabulary(duplicate)).rejects.toThrow();
     expect(services.vocabularyStatus().loaded).toBe(false);
+    await services.clearVocabulary();
+    expect(services.unlockVocabulary("local-only-unlock")).toBe(false);
+  });
+
+  it("restores an encrypted cache but keeps its entry inventory locked until unlock", async () => {
+    const { root, services } = await service();
+    await services.configureVocabularyUnlock("restart-unlock");
+    expect(services.unlockVocabulary("restart-unlock")).toBe(true);
+    await services.saveVocabulary(new TextEncoder().encode(JSON.stringify({ schemaVersion: 1, entries: { Alpha: "Beta", Gamma: "Delta" } })));
+    const restarted = new DesktopServices({ dataDirectory: root, vocabularyCrypto: { seal: (bytes) => new Uint8Array(bytes).map((byte) => byte ^ 0xa5), unseal: (bytes) => new Uint8Array(bytes).map((byte) => byte ^ 0xa5) } });
+    await restarted.ready();
+    expect(restarted.vocabularyStatus()).toMatchObject({ authenticated: false, loaded: true, entryCount: 0 });
+    expect(() => restarted.privateVocabularyEntries()).toThrow("locked");
+    expect(restarted.unlockVocabulary("restart-unlock")).toBe(true);
+    expect(restarted.privateVocabularyEntries()).toEqual([{ key: "Alpha", value: "Beta" }, { key: "Gamma", value: "Delta" }]);
+    expect(restarted.renderPrivateText("Alpha code 123", "private-ui", [{ start: 6, end: 10 }])).toBe("Beta code 123");
+  });
+
+  it("reports clear failures without purging live access state", async () => {
+    const { root, services } = await service();
+    await services.configureVocabularyUnlock("clear-unlock");
+    expect(services.unlockVocabulary("clear-unlock")).toBe(true);
+    await services.saveVocabulary(new TextEncoder().encode(JSON.stringify({ schemaVersion: 1, entries: { Alpha: "Beta" } })));
+    await rm(join(root, "vocabulary.bin"), { force: true });
+    await mkdir(join(root, "vocabulary.bin"));
+    await expect(services.clearVocabulary()).rejects.toThrow("Unable to clear private vocabulary state");
+    expect(services.vocabularyStatus()).toMatchObject({ authenticated: true, loaded: true, entryCount: 1 });
   });
 
   it("queues a real typed file operation and persists notifications", async () => {
@@ -97,5 +125,22 @@ describe("desktop services", () => {
     const restarted = new DesktopServices({ dataDirectory: root });
     await restarted.ready();
     expect(restarted.getUpdaterState()).toMatchObject({ state: "ready", version: "0.1.0", unsigned: true });
+  });
+
+  it("exposes security, download, and honest unavailable status routes", async () => {
+    const { services } = await service();
+    const lock = await services.createLock("settings.accent", "PIN", { kind: "minutes", minutes: 5 }, { pin: "1234" });
+    expect(services.listLocks()[0].credentialReferences.present).toEqual(["pin"]);
+    expect((await services.unlockLock(lock.id, { pin: "1234" })).unlocked).toBe(true);
+    const pairing = services.createTotpPairing({ issuer: "Wording Lens", account: "local", secret: "JBSWY3DPEHPK3PXP" });
+    expect(pairing.uri).toMatch(/^otpauth:\/\/totp\//u);
+    expect(services.verifyTotp("JBSWY3DPEHPK3PXP", generateTotpCode("JBSWY3DPEHPK3PXP")).valid).toBe(true);
+    expect(services.createSupportTicket("lock-recovery", "Need local recovery", "normal").status).toBe("received");
+    expect(services.statusHubState()).toEqual({ available: false, reason: "client-library-unavailable" });
+    expect(services.downloadBridgeStatus()).toEqual({ available: false, reason: "native-host-not-installed" });
+    const started = services.startDownload({ schemaVersion: 1, captureId: "capture-1", fileName: "report.txt", sourceUrl: "https://example.invalid/report.txt", destination: "downloads", requestedAt: new Date().toISOString(), userInvoked: true, alwaysOnTop: true });
+    expect(started.ok).toBe(true);
+    expect(services.downloadStatus()[0]).toMatchObject({ captureId: "capture-1", fileName: "[redacted]", source: "[redacted]" });
+    expect(JSON.stringify(await services.exportHistory())).not.toContain("JBSWY3DPEHPK3PXP");
   });
 });
