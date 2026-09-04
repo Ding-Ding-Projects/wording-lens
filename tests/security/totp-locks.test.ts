@@ -10,6 +10,26 @@ describe('local TOTP and novelty locks', () => {
     expect(verifyTotpCode(secret, code, { timestampMs: 59_000, window: 0 }).valid).toBe(true)
   })
 
+  it('matches the published RFC 6238 eight-digit vectors for all algorithms', () => {
+    const vectors = [
+      ['GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 'SHA1', '94287082'],
+      ['GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====', 'SHA256', '46119246'],
+      ['GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=', 'SHA512', '90693936'],
+    ] as const
+    for (const [secret, algorithm, expected] of vectors) expect(generateTotpCode(secret, { algorithm, digits: 8, timestampMs: 59_000 })).toBe(expected)
+  })
+
+  it('keeps six-digit verification tied to each period boundary', () => {
+    const secret = 'gezdgnbvgy3tqojqgezdgnbvgy3tqojq'
+    const before = generateTotpCode(secret, { timestampMs: 29_999 })
+    const after = generateTotpCode(secret, { timestampMs: 30_000 })
+    expect(before).toHaveLength(6)
+    expect(after).toHaveLength(6)
+    expect(verifyTotpCode(secret, before, { timestampMs: 29_999, window: 0 }).valid).toBe(true)
+    expect(verifyTotpCode(secret, before, { timestampMs: 30_000, window: 0 }).valid).toBe(false)
+    expect(verifyTotpCode(secret, after, { timestampMs: 30_000, window: 0 }).valid).toBe(true)
+  })
+
   it('reports bounded skew and generates a local pairing payload', () => {
     const secret = 'jbswy3dpehpk3pxp'
     const code = generateTotpCode(secret, { timestampMs: 90_000 })

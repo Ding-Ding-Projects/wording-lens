@@ -122,9 +122,9 @@ export class ToyLockManager {
     if (!record) return false
     const state = this.unlocked.get(lockId)
     if (!state) return true
-    if (state.kind === 'this-surface' && (surfaceSessionId !== state.surfaceSessionId || !state.surfaceSessionId || this.closedSurfaceSessions.has(state.surfaceSessionId))) {
-      this.unlocked.delete(lockId)
-      return true
+    if (state.kind === 'this-surface') {
+      if (this.closedSurfaceSessions.has(state.surfaceSessionId!)) this.unlocked.delete(lockId)
+      if (surfaceSessionId !== state.surfaceSessionId || !state.surfaceSessionId || this.closedSurfaceSessions.has(state.surfaceSessionId!)) return true
     }
     if (state.expiresAtMs === null || state.expiresAtMs > nowMs) return false
     this.unlocked.delete(lockId)

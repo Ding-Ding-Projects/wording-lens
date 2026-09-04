@@ -16,6 +16,13 @@ describe('append-only history', () => {
     expect((await backend.list()).map((item) => item.action)).toEqual(['updated', 'restored'])
     expect((await history.exportRedacted()).revisions[0]).not.toHaveProperty('snapshot')
   })
+
+  it('lets the primary mutation continue when the history backend cannot commit', async () => {
+    const failingBackend = { append: async () => { throw new Error('backend unavailable') }, list: async () => [] }
+    const history = new AppendOnlyHistory(failingBackend, new Uint8Array(32).fill(3))
+    const result = await history.tryRecord({ revisionId: 'r-fail', stableRecordId: 'record:stable', action: 'updated', label: 'Changed setting' })
+    expect(result).toEqual({ historyRecorded: false, recoveryReason: 'history-unavailable' })
+  })
 })
 
 describe('scheduled settings', () => {
@@ -38,6 +45,8 @@ describe('scheduled settings', () => {
     expect(() => validateExternalValues({ version: 1, values: { unknown: true } })).toThrow()
     expect(() => validateHomeAssistantState({ state: 'unknown' })).toThrow()
     expect(() => validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [{ ...rule, source: { kind: 'api', url: 'ftp://127.0.0.1:8123/config' } }] })).toThrow()
+    expect(() => validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [{ ...rule, source: { kind: 'api', url: 'https://example.test:8123/config' } }] })).toThrow()
+    expect(validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [{ ...rule, source: { kind: 'api', url: 'https://example.test:8443/config' } }] }).rules[0].source).toEqual({ kind: 'api', url: 'https://example.test:8443/config' })
     expect(validateSchedule({ schemaVersion: 1, timezone: 'America/Toronto', rules: [{ ...rule, source: { kind: 'home-assistant', baseUrl: 'http://127.0.0.1:8123', entityId: 'input_boolean.focus' } }] }).rules[0].source).toEqual({ kind: 'home-assistant', baseUrl: 'http://127.0.0.1:8123', entityId: 'input_boolean.focus' })
   })
 })

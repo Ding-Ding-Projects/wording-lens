@@ -43,6 +43,7 @@ export interface ValidatedExternalValues {
 
 const VALUE_KEYS = new Set(['languageMode', 'theme', 'density', 'accent', 'fontFamily', 'motion'])
 const TZ_FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>()
+export const SAFE_PUBLIC_HTTPS_PORTS = [443, 8443] as const
 
 function formatter(timezone: string): Intl.DateTimeFormat {
   let value = TZ_FORMATTER_CACHE.get(timezone)
@@ -85,6 +86,7 @@ function validateSource(source: ScheduleSource): void {
     const allowedProtocol = url.protocol === 'https:' || (url.protocol === 'http:' && loopback)
     if (url.username || url.password || !allowedProtocol) throw new Error('Schedule source must use HTTPS, or loopback HTTP without embedded credentials')
     if (url.port && (!Number.isInteger(Number(url.port)) || Number(url.port) < 1 || Number(url.port) > 65535)) throw new Error('Schedule source uses an unsafe port')
+    if (!loopback && url.protocol === 'https:' && url.port && !SAFE_PUBLIC_HTTPS_PORTS.includes(Number(url.port) as typeof SAFE_PUBLIC_HTTPS_PORTS[number])) throw new Error('Public HTTPS schedule source uses a port outside the safe allowlist')
     if (source.kind === 'home-assistant' && !/^[a-z0-9_]+\.[a-z0-9_]+$/.test(source.entityId)) throw new Error('Home Assistant entity identifier is invalid')
   }
 }

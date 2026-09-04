@@ -24,6 +24,10 @@ export interface HistoryBackend {
   list(): Promise<HistoryRevision[]>
 }
 
+export type HistoryRecordResult =
+  | { historyRecorded: true; revision: HistoryRevision }
+  | { historyRecorded: false; recoveryReason: 'history-unavailable' }
+
 export interface GitExecutor {
   run(args: readonly string[], cwd: string): Promise<{ exitCode: number; stdout: string; stderr: string }>
 }
@@ -106,6 +110,14 @@ export class AppendOnlyHistory {
     }
     await this.backend.append(revision)
     return structuredClone(revision)
+  }
+
+  async tryRecord(input: { revisionId: string; stableRecordId: string; action: HistoryAction; label: string; snapshot?: Uint8Array }): Promise<HistoryRecordResult> {
+    try {
+      return { historyRecorded: true, revision: await this.record(input) }
+    } catch {
+      return { historyRecorded: false, recoveryReason: 'history-unavailable' }
+    }
   }
 
   async restoreAsNewRevision(revision: HistoryRevision, newRevisionId: string): Promise<HistoryRevision> {
