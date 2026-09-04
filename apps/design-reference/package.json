@@ -1,0 +1,11 @@
+{
+  "name": "wording-lens-design-reference",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plain Electron viewer for the checked-in Wording Lens design reference.",
+  "type": "module",
+  "scripts": {
+    "check": "node ../../scripts/design-reference-check.mjs",
+    "start": "node ../../node_modules/electron/cli.js main.mjs"
+  }
+}
