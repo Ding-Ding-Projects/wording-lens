@@ -10,6 +10,10 @@ import type { ChatParameters, ChatSession, RuntimeHealth } from "../../ollama/sr
 import { validateSchedule, resolveScheduledValues, validateExternalValues, validateHomeAssistantState, type ScheduleSchema, type ScheduledValues } from "../../scheduling/schedule.js";
 import { AppendOnlyHistory, type HistoryAction, type HistoryBackend, type HistoryRevision } from "../../history/history.js";
 import type { VocabularyDocument } from "../../integration/vocabulary-boundary.js";
+import { MemoryCredentialVault, ToyLockManager, buildOtpAuthUri, verifyTotpCode, type LockAttempt, type LockRecord, type NoveltyLockPolicy, type UnlockDuration, type TotpOptions } from "../../security/index.js";
+import { LocalSupportTicketStore, type SupportTicket, type TicketCategory, type TicketSeverity } from "../../security/support-tickets.js";
+import { UnlockLadderService, type LadderAnswer, type LadderIssue, type LadderResult, type LadderRung } from "../../security/unlock-ladder.js";
+import { DownloadStateEngine, type DownloadPublicRecord, type DownloadStartRequest, type BridgeStatus } from "../../downloads/src/index.js";
 // This import is the canonical bounded parser. It rejects duplicate keys before
 // a document can reach the private renderer boundary.
 
@@ -81,6 +85,15 @@ export interface UpdaterState {
   checkedAt?: string;
   error?: string;
 }
+
+export interface StatusHubState {
+  available: boolean;
+  reason?: "client-library-unavailable";
+}
+
+export type PrivateSinkBoundary = "private-ui" | "accessible-name";
+export interface PrivateTextSpan { start: number; end: number }
+export type PublicLockRecord = Omit<LockRecord, "credentialReferences"> & { credentialReferences: { present: string[] } };
 
 export interface EditorCandidate {
   id: "vscode" | "vscode-insiders" | "notepad" | "notepad-plus-plus";
@@ -175,6 +188,10 @@ export class DesktopServices {
   private readonly notifications: JsonStore<NotificationRecord[]>;
   private readonly updater: JsonStore<UpdaterState>;
   private readonly history: AppendOnlyHistory;
+  private readonly locks: ToyLockManager;
+  private readonly tickets = new LocalSupportTicketStore();
+  private readonly ladder = new UnlockLadderService();
+  private readonly downloads = new DownloadStateEngine();
   private readonly queue: DurableOperationQueue;
   private readonly registry: AdapterRegistry;
   private readonly ollamaBaseUrl: string;
@@ -195,6 +212,7 @@ export class DesktopServices {
     this.settings = new JsonStore(join(this.dataDirectory, "settings.json"), defaultSettings);
     this.notifications = new JsonStore(join(this.dataDirectory, "notifications.json"), []);
     this.updater = new JsonStore(join(this.dataDirectory, "updater.json"), { state: "idle", unsigned: true });
+    this.locks = new ToyLockManager(new MemoryCredentialVault());
     this.history = new AppendOnlyHistory(new JsonHistoryBackend(join(this.dataDirectory, "history.json")), new Uint8Array(32));
     this.registry = options.registry ?? createDefaultAdapterRegistry();
     this.ollamaBaseUrl = options.ollamaBaseUrl ?? "http://127.0.0.1:11434";
@@ -211,6 +229,7 @@ export class DesktopServices {
     this.updaterValue = await this.updater.load();
     await this.queue.ready();
     await this.queue.recover();
+    await this.loadVocabularyVerifier();
     await this.loadVocabularyCache();
   }
 
@@ -377,7 +396,9 @@ export class DesktopServices {
 
   public async configureVocabularyUnlock(secret: string): Promise<void> {
     const value = boundedText(secret, "unlock secret", 512);
-    this.vocabularyVerifier = createHash("sha256").update(value, "utf8").digest("hex");
+    const verifier = createHash("sha256").update(value, "utf8").digest("hex");
+    if (this.vocabularyCrypto) await atomicWrite(join(this.dataDirectory, "vocabulary-unlock.bin"), this.vocabularyCrypto.seal(new TextEncoder().encode(verifier)));
+    this.vocabularyVerifier = verifier;
     this.vocabularyAuthenticated = false;
   }
   public unlockVocabulary(secret: string): boolean {
@@ -393,7 +414,26 @@ export class DesktopServices {
     if (this.vocabularyCrypto) await atomicWrite(join(this.dataDirectory, "vocabulary.bin"), this.vocabularyCrypto.seal(jsonBytes(this.vocabulary)));
     return this.vocabularyStatus();
   }
-  public async clearVocabulary(): Promise<VocabularyStatus> { this.vocabulary = null; this.vocabularyAuthenticated = false; await rm(join(this.dataDirectory, "vocabulary.bin"), { force: true }); return this.vocabularyStatus(); }
+  public async clearVocabulary(): Promise<VocabularyStatus> {
+    try {
+      await rm(join(this.dataDirectory, "vocabulary.bin"), { force: true });
+      await rm(join(this.dataDirectory, "vocabulary-unlock.bin"), { force: true });
+    } catch (error) {
+      throw new Error(`Unable to clear private vocabulary state: ${error instanceof Error ? error.message : "storage error"}`);
+    }
+    this.vocabulary = null;
+    this.vocabularyVerifier = null;
+    this.vocabularyAuthenticated = false;
+    return this.vocabularyStatus();
+  }
+  private async loadVocabularyVerifier(): Promise<void> {
+    if (!this.vocabularyCrypto) return;
+    try {
+      const encrypted = new Uint8Array(await readFile(join(this.dataDirectory, "vocabulary-unlock.bin")));
+      const value = new TextDecoder("utf-8", { fatal: true }).decode(this.vocabularyCrypto.unseal(encrypted));
+      if (/^[\da-f]{64}$/u.test(value)) this.vocabularyVerifier = value;
+    } catch { this.vocabularyVerifier = null; }
+  }
   private async loadVocabularyCache(): Promise<void> {
     if (!this.vocabularyCrypto) return;
     try {
@@ -403,9 +443,63 @@ export class DesktopServices {
   }
   public vocabularyStatus(): VocabularyStatus { return { authenticated: this.vocabularyAuthenticated, loaded: this.vocabulary !== null, entryCount: this.vocabularyAuthenticated ? Object.keys(this.vocabulary?.entries ?? {}).length : 0 }; }
   public applyPrivateText(text: string): string {
-    if (!this.vocabularyAuthenticated || !this.vocabulary) return text;
-    let output = text;
-    for (const [key, value] of Object.entries(this.vocabulary.entries).sort(([left], [right]) => right.length - left.length)) output = output.split(key).join(value);
-    return output;
+    return this.renderPrivateText(text, "private-ui");
   }
+
+  public privateVocabularyEntries(): readonly { key: string; value: string }[] {
+    if (!this.vocabularyAuthenticated || !this.vocabulary) throw new Error("Private wording is locked");
+    return Object.entries(this.vocabulary.entries).map(([key, value]) => ({ key, value }));
+  }
+  public renderPrivateText(text: string, boundary: PrivateSinkBoundary, protectedSpans: readonly PrivateTextSpan[] = []): string {
+    const source = boundedText(text, "private text", 100_000);
+    if (!this.vocabularyAuthenticated || !this.vocabulary) return source;
+    if (boundary !== "private-ui" && boundary !== "accessible-name") throw new Error("Private wording sink boundary is not allowed");
+    const ranges = [...protectedSpans].sort((left, right) => left.start - right.start || left.end - right.end);
+    let output = "";
+    let cursor = 0;
+    for (const range of ranges) {
+      if (!Number.isInteger(range.start) || !Number.isInteger(range.end) || range.start < cursor || range.end < range.start || range.end > source.length) throw new Error("Private text span is invalid");
+      output += renderAliases(source.slice(cursor, range.start), this.vocabulary);
+      output += source.slice(range.start, range.end);
+      cursor = range.end;
+    }
+    return output + renderAliases(source.slice(cursor), this.vocabulary);
+  }
+
+  public async createLock(targetId: string, policy: NoveltyLockPolicy, duration: UnlockDuration, factors: { pin?: string; password?: string; totpSecret?: Uint8Array }): Promise<PublicLockRecord> { return publicLockRecord(await this.locks.createLock(boundedText(targetId, "lock target", 200), policy, duration, factors)); }
+  public listLocks(): readonly PublicLockRecord[] {
+    return this.locks.listLocks().map(publicLockRecord);
+  }
+  public unlockLock(lockId: string, attempt: LockAttempt = {}) { return this.locks.unlock(boundedText(lockId, "lock id", 200), attempt); }
+  public relock(lockId: string): void { this.locks.relock(boundedText(lockId, "lock id", 200)); }
+  public async removeLock(lockId: string): Promise<void> { await this.locks.removeLock(boundedText(lockId, "lock id", 200)); }
+  public createTotpPairing(input: Parameters<typeof buildOtpAuthUri>[0]): { uri: string; issuer: string; account: string; algorithm: string; digits: number; periodSeconds: number } {
+    const uri = buildOtpAuthUri(input);
+    return { uri, issuer: input.issuer, account: input.account, algorithm: input.algorithm ?? "SHA1", digits: input.digits ?? 6, periodSeconds: input.periodSeconds ?? 30 };
+  }
+  public verifyTotp(secret: string, code: string, options: TotpOptions & { window?: number } = {}) { return verifyTotpCode(boundedText(secret, "TOTP secret", 512), boundedText(code, "TOTP code", 16), options); }
+  public listSupportTickets(): readonly SupportTicket[] { return this.tickets.list(); }
+  public createSupportTicket(category: TicketCategory, description: string, severity: TicketSeverity): SupportTicket { return this.tickets.create({ category, description: boundedText(description, "ticket description", 10_000), severity }); }
+  public advanceSupportTicket(id: string): SupportTicket { return this.tickets.advance(boundedText(id, "ticket id", 200)); }
+  public async resolveSupportTicket(id: string): Promise<{ ticket: SupportTicket; openedPath: string; networkUsed: false }> {
+    const resolved = this.tickets.resolve(boundedText(id, "ticket id", 200), this.dataDirectory);
+    const opened = await this.openRecoveryFolder();
+    return { ...resolved, openedPath: opened.path };
+  }
+  public issueUnlockChallenge(subjectId: string, rung: LadderRung, options: { schoolMode?: boolean; waitMs?: number } = {}): LadderIssue | null { return this.ladder.issue(boundedText(subjectId, "ladder subject", 200), rung, options); }
+  public answerUnlockChallenge(subjectId: string, answer: LadderAnswer): LadderResult { return this.ladder.answer(boundedText(subjectId, "ladder subject", 200), answer); }
+  public downloadBridgeStatus(): BridgeStatus { return { available: false, reason: "native-host-not-installed" }; }
+  public startDownload(value: unknown): ReturnType<DownloadStateEngine["start"]> { return this.downloads.start(value); }
+  public downloadStatus(): readonly DownloadPublicRecord[] { return this.downloads.listPublic(); }
+  public statusHubState(): StatusHubState { return { available: false, reason: "client-library-unavailable" }; }
+}
+
+function renderAliases(text: string, vocabulary: VocabularyDocument): string {
+  let output = text;
+  for (const [key, value] of Object.entries(vocabulary.entries).sort(([left], [right]) => right.length - left.length)) output = output.split(key).join(value);
+  return output;
+}
+
+function publicLockRecord(record: LockRecord): PublicLockRecord {
+  return { ...record, credentialReferences: { present: Object.keys(record.credentialReferences) } };
 }

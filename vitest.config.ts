@@ -10,11 +10,7 @@ module.exports = defineConfig({
     include: [
       "packages/core/tests/**/*.test.ts",
       "apps/desktop/tests/**/*.test.ts",
-      "tests/integration/**/*.test.ts",
-      "tests/runtime/**/*.test.ts",
-      "tests/brand-assets/**/*.test.ts",
-      "tests/downloads/**/*.test.ts",
-      "tests/desktop-services/**/*.test.ts",
+      "tests/**/*.test.ts",
     ],
     testTimeout: 30000,
     hookTimeout: 30000,

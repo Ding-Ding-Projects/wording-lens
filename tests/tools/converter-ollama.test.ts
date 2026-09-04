@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import test from "node:test";
+import { it as test } from "vitest";
 import { atomicWriteValidated, createDefaultAdapterRegistry, detectSignature, MemoryQueueStore, ResumableQueue, validateOutput, validatePdfOperation } from "../../packages/converter/src/index";
 import { assessFit, attachmentDecision, createOllamaApi, createSnapshot, preflightHarness, refreshCatalog, validateHarnessProfile } from "../../packages/ollama/src/index";
 

@@ -20,4 +20,4 @@ squirrelWindows:
   artifactName: Wording-Lens-${version}-Setup.exe
   msi: false
   useAppIdAsId: true
-  iconUrl: https://github.com/Ding-Ding-Projects/wording-lens/raw/main/packaging/wording-lens.ico
+  iconUrl: https://github.com/Ding-Ding-Projects/wording-lens/raw/923e5b1775bc384b9e9fd9587b0fe23d98f35d78/packaging/wording-lens.ico

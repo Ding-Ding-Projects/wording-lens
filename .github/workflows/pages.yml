@@ -17,23 +17,25 @@ jobs:
     runs-on: windows-2025
     env:
       SITE_BASE_PATH: /wording-lens
+      NEXT_PUBLIC_SITE_URL: https://ding-ding-projects.github.io/wording-lens/
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Bootstrap declared dependencies
-        run: .\download-dependencies.bat /s
-
-      - name: Build the site
+      - name: Bootstrap the exact Node toolchain, install site dependencies, and build
         shell: pwsh
         run: |
+          & scripts/bootstrap-dependencies.ps1 -Silent
+          if ($LASTEXITCODE -ne 0) { throw "Dependency bootstrap exited with $LASTEXITCODE." }
           $npm = Get-Command npm.cmd -ErrorAction Stop
-          if (Test-Path apps/site/package.json) {
-            Push-Location apps/site
-            try { & $npm.Source run build } finally { Pop-Location }
-          } elseif (Test-Path package.json) {
-            & $npm.Source run build:site --if-present
-          } else { throw 'No site package manifest was found.' }
+          if (-not (Test-Path apps/site/package.json)) { throw 'No site package manifest was found.' }
+          Push-Location apps/site
+          try {
+            & $npm.Source ci --no-audit --no-fund --ignore-scripts
+            if ($LASTEXITCODE -ne 0) { throw "apps/site npm ci exited with $LASTEXITCODE." }
+            & $npm.Source run build
+            if ($LASTEXITCODE -ne 0) { throw "apps/site build exited with $LASTEXITCODE." }
+          } finally { Pop-Location }
           if (-not (Test-Path apps/site/dist/client/index.html)) { throw 'The site build did not produce apps/site/dist/client/index.html.' }
 
       - name: Configure Pages

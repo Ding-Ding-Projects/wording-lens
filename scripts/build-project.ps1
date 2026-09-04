@@ -20,7 +20,8 @@ if (-not $Silent) {
     exit $elevated.ExitCode
   }
 }
-& $bootstrap $(if ($Silent) { '-Silent' })
+$bootstrapArgs = if ($Silent) { @{ Silent = $true } } else { @{} }
+& $bootstrap @bootstrapArgs
 if ($LASTEXITCODE -ne 0) { throw "Dependency bootstrap exited with $LASTEXITCODE." }
 $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $npm) { throw 'npm.cmd was not found after dependency bootstrap.' }
@@ -36,6 +37,9 @@ try {
 
 $expected = @(
   (Join-Path $root 'dist-electron\apps\desktop\electron\main.js'),
+  (Join-Path $root 'dist-electron\apps\desktop\electron\preload.js'),
+  (Join-Path $root 'dist-electron\packages\core\src\provenance.js'),
+  (Join-Path $root 'dist-electron\packages\integration\vocabulary-boundary.js'),
   (Join-Path $root 'dist\renderer\index.html')
 )
 $missing = @($expected | Where-Object { -not (Test-Path -LiteralPath $_) })

@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { BUILD_PROVENANCE } from "../../../packages/core/src/provenance";
 import type { OperationPreview, OperationRequest, OperationState } from "../../../packages/operations/types.js";
-import type { AppSettings, EditorCandidate, NotificationRecord, ProjectInspection, UpdaterState, VocabularyStatus } from "../../../packages/desktop-services/src/index.js";
+import type { AppSettings, EditorCandidate, NotificationRecord, ProjectInspection, PublicLockRecord, StatusHubState, UpdaterState, VocabularyStatus } from "../../../packages/desktop-services/src/index.js";
+import type { LockAttempt, NoveltyLockPolicy, UnlockDuration, TotpOptions } from "../../../packages/security/index.js";
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   getProvenance: () => ipcRenderer.invoke("app:get-provenance"),
@@ -37,8 +38,27 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       configureVocabularyUnlock: (secret: string): Promise<void> => ipcRenderer.invoke("vocabulary:configure-unlock", secret),
       unlockVocabulary: (secret: string): Promise<boolean> => ipcRenderer.invoke("vocabulary:unlock", secret),
       vocabularyStatus: (): Promise<VocabularyStatus> => ipcRenderer.invoke("vocabulary:status"),
+      vocabularyEntries: (): Promise<readonly { key: string; value: string }[]> => ipcRenderer.invoke("vocabulary:entries"),
+      renderPrivateText: (text: string, boundary: "private-ui" | "accessible-name", spans?: readonly { start: number; end: number }[]): Promise<string> => ipcRenderer.invoke("vocabulary:render-private", text, boundary, spans),
       saveVocabulary: (bytes: Uint8Array): Promise<VocabularyStatus> => ipcRenderer.invoke("vocabulary:save", bytes),
       clearVocabulary: (): Promise<VocabularyStatus> => ipcRenderer.invoke("vocabulary:clear"),
+      createLock: (targetId: string, policy: NoveltyLockPolicy, duration: UnlockDuration, factors: { pin?: string; password?: string; totpSecret?: Uint8Array }): Promise<PublicLockRecord> => ipcRenderer.invoke("security:create-lock", targetId, policy, duration, factors),
+      listLocks: (): Promise<readonly unknown[]> => ipcRenderer.invoke("security:list-locks"),
+      unlockLock: (lockId: string, attempt?: LockAttempt): Promise<unknown> => ipcRenderer.invoke("security:unlock", lockId, attempt),
+      relock: (lockId: string): Promise<void> => ipcRenderer.invoke("security:relock", lockId),
+      removeLock: (lockId: string): Promise<void> => ipcRenderer.invoke("security:remove-lock", lockId),
+      createTotpPairing: (input: { issuer: string; account: string; secret: string; algorithm?: "SHA1" | "SHA256" | "SHA512"; digits?: 6 | 7 | 8; periodSeconds?: number }): Promise<unknown> => ipcRenderer.invoke("security:totp-pairing", input),
+      verifyTotp: (secret: string, code: string, options?: TotpOptions & { window?: number }): Promise<unknown> => ipcRenderer.invoke("security:totp-verify", secret, code, options),
+      listSupportTickets: (): Promise<readonly unknown[]> => ipcRenderer.invoke("security:tickets"),
+      createSupportTicket: (category: string, description: string, severity: string): Promise<unknown> => ipcRenderer.invoke("security:ticket-create", category, description, severity),
+      advanceSupportTicket: (id: string): Promise<unknown> => ipcRenderer.invoke("security:ticket-advance", id),
+      resolveSupportTicket: (id: string): Promise<unknown> => ipcRenderer.invoke("security:ticket-resolve", id),
+      issueUnlockChallenge: (subjectId: string, rung: string, options?: { schoolMode?: boolean; waitMs?: number }): Promise<unknown> => ipcRenderer.invoke("security:ladder-issue", subjectId, rung, options),
+      answerUnlockChallenge: (subjectId: string, answer: unknown): Promise<unknown> => ipcRenderer.invoke("security:ladder-answer", subjectId, answer),
+      downloadBridgeStatus: (): Promise<unknown> => ipcRenderer.invoke("downloads:bridge-status"),
+      startDownload: (value: unknown): Promise<unknown> => ipcRenderer.invoke("downloads:start", value),
+      downloadStatus: (): Promise<readonly unknown[]> => ipcRenderer.invoke("downloads:status"),
+      statusHubState: (): Promise<StatusHubState> => ipcRenderer.invoke("status-hub:state"),
   minimize: () => ipcRenderer.send("window:minimize"),
   toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),
   close: () => ipcRenderer.send("window:close"),

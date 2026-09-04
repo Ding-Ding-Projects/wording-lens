@@ -76,8 +76,27 @@ function registerWindowHandlers(): void {
   ipcMain.handle("vocabulary:configure-unlock", (event, secret: unknown) => { assertTrustedSender(event); return requireServices().configureVocabularyUnlock(String(secret)); });
   ipcMain.handle("vocabulary:unlock", (event, secret: unknown) => { assertTrustedSender(event); return requireServices().unlockVocabulary(String(secret)); });
   ipcMain.handle("vocabulary:status", (event) => { assertTrustedSender(event); return requireServices().vocabularyStatus(); });
+  ipcMain.handle("vocabulary:entries", (event) => { assertTrustedSender(event); return requireServices().privateVocabularyEntries(); });
+  ipcMain.handle("vocabulary:render-private", (event, text: unknown, boundary: unknown, spans: unknown) => { assertTrustedSender(event); return requireServices().renderPrivateText(String(text), boundary === "accessible-name" ? "accessible-name" : "private-ui", Array.isArray(spans) ? spans : []); });
   ipcMain.handle("vocabulary:save", async (event, bytes: unknown) => { assertTrustedSender(event); return requireServices().saveVocabulary(bytes instanceof Uint8Array ? bytes : new Uint8Array()); });
   ipcMain.handle("vocabulary:clear", (event) => { assertTrustedSender(event); return requireServices().clearVocabulary(); });
+  ipcMain.handle("security:create-lock", (event, targetId: unknown, policy: unknown, duration: unknown, factors: unknown) => { assertTrustedSender(event); return requireServices().createLock(String(targetId), policy as Parameters<DesktopServices["createLock"]>[1], duration as Parameters<DesktopServices["createLock"]>[2], factors as Parameters<DesktopServices["createLock"]>[3]); });
+  ipcMain.handle("security:list-locks", (event) => { assertTrustedSender(event); return requireServices().listLocks(); });
+  ipcMain.handle("security:unlock", (event, lockId: unknown, attempt: unknown) => { assertTrustedSender(event); return requireServices().unlockLock(String(lockId), attempt as Parameters<DesktopServices["unlockLock"]>[1]); });
+  ipcMain.handle("security:relock", (event, lockId: unknown) => { assertTrustedSender(event); return requireServices().relock(String(lockId)); });
+  ipcMain.handle("security:remove-lock", (event, lockId: unknown) => { assertTrustedSender(event); return requireServices().removeLock(String(lockId)); });
+  ipcMain.handle("security:totp-pairing", (event, input: unknown) => { assertTrustedSender(event); return requireServices().createTotpPairing(input as Parameters<DesktopServices["createTotpPairing"]>[0]); });
+  ipcMain.handle("security:totp-verify", (event, secret: unknown, code: unknown, options: unknown) => { assertTrustedSender(event); return requireServices().verifyTotp(String(secret), String(code), options as Parameters<DesktopServices["verifyTotp"]>[2]); });
+  ipcMain.handle("security:tickets", (event) => { assertTrustedSender(event); return requireServices().listSupportTickets(); });
+  ipcMain.handle("security:ticket-create", (event, category: unknown, description: unknown, severity: unknown) => { assertTrustedSender(event); return requireServices().createSupportTicket(category as Parameters<DesktopServices["createSupportTicket"]>[0], String(description), severity as Parameters<DesktopServices["createSupportTicket"]>[2]); });
+  ipcMain.handle("security:ticket-advance", (event, id: unknown) => { assertTrustedSender(event); return requireServices().advanceSupportTicket(String(id)); });
+  ipcMain.handle("security:ticket-resolve", (event, id: unknown) => { assertTrustedSender(event); return requireServices().resolveSupportTicket(String(id)); });
+  ipcMain.handle("security:ladder-issue", (event, subjectId: unknown, rung: unknown, options: unknown) => { assertTrustedSender(event); return requireServices().issueUnlockChallenge(String(subjectId), rung as Parameters<DesktopServices["issueUnlockChallenge"]>[1], options as Parameters<DesktopServices["issueUnlockChallenge"]>[2]); });
+  ipcMain.handle("security:ladder-answer", (event, subjectId: unknown, answer: unknown) => { assertTrustedSender(event); return requireServices().answerUnlockChallenge(String(subjectId), answer as Parameters<DesktopServices["answerUnlockChallenge"]>[1]); });
+  ipcMain.handle("downloads:bridge-status", (event) => { assertTrustedSender(event); return requireServices().downloadBridgeStatus(); });
+  ipcMain.handle("downloads:start", (event, value: unknown) => { assertTrustedSender(event); return requireServices().startDownload(value); });
+  ipcMain.handle("downloads:status", (event) => { assertTrustedSender(event); return requireServices().downloadStatus(); });
+  ipcMain.handle("status-hub:state", (event) => { assertTrustedSender(event); return requireServices().statusHubState(); });
   ipcMain.on("window:minimize", (event) => { assertTrustedSender(event); BrowserWindow.fromWebContents(event.sender)?.minimize(); });
   ipcMain.on("window:toggle-maximize", (event) => {
     assertTrustedSender(event);

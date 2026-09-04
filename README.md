@@ -5,8 +5,10 @@ files, builds, releases, local services, and external tools. It can apply a
 user-supplied wording overlay inside the private interface without embedding or
 publishing that user's vocabulary.
 
-> This repository is at its foundation milestone. The first runnable build and
-> verified installer will be documented here as soon as they exist.
+![Wording Lens social preview](social-preview.png)
+
+> The local desktop build and documentation site build are working. The first
+> verified installer, deployed site, and public release are still pending.
 
 ## Project links
 
@@ -17,15 +19,33 @@ publishing that user's vocabulary.
 
 ## Build
 
-The supported one-command build will be:
+The supported one-command source build is:
 
 ```powershell
 .\build.bat --run
 ```
 
-The script will bootstrap its pinned toolchain, refuse an uncommitted source
-state, build the real application, verify the executable and resources, and
-launch only after those checks pass.
+The script bootstraps its pinned toolchain, refuses an uncommitted source state,
+builds the real application, verifies the executable and resources, and launches
+only after those checks pass. Use `build.bat /s` for non-interactive automation.
+
+Run the complete local check set with:
+
+```powershell
+npm test
+```
+
+The current aggregate contains 92 passing checks. This is local evidence only,
+not packaged-application or release evidence.
+
+The installer path is:
+
+```powershell
+.\build-installer.bat /s
+```
+
+It produces an unsigned Squirrel.Windows package. That path has not yet completed
+its first verified run, so no installer is advertised here.
 
 ## Privacy boundary
 
