@@ -23,12 +23,18 @@ function Get-LocalToolRoot {
 
 $nodeSpec = @($manifest.dependencies | Where-Object { $_.name -eq 'Node.js' })[0]
 if (-not $nodeSpec) { throw 'The dependency manifest does not declare Node.js.' }
+$builderSpec = @($manifest.dependencies | Where-Object { $_.name -eq 'electron-builder' })[0]
+if (-not $builderSpec) { throw 'The dependency manifest does not declare electron-builder.' }
 $toolRoot = Get-LocalToolRoot
 $nodeRoot = Join-Path $toolRoot ($nodeSpec.installRelativePath -replace '^\.toolchain[\\/]', '')
 $nodeExe = Join-Path $nodeRoot 'node.exe'
 $npmCmd = Join-Path $nodeRoot 'npm.cmd'
+$nodeVersionMismatch = $false
+if (Test-Path -LiteralPath $nodeExe) {
+  try { $nodeVersionMismatch = ((& $nodeExe --version).Trim() -ne "v$($nodeSpec.version)") } catch { $nodeVersionMismatch = $true }
+}
 
-if (-not (Test-Path -LiteralPath $nodeExe) -or -not (Test-Path -LiteralPath $npmCmd)) {
+if (-not (Test-Path -LiteralPath $nodeExe) -or -not (Test-Path -LiteralPath $npmCmd) -or $nodeVersionMismatch) {
   Write-Phase "Downloading $($nodeSpec.name) $($nodeSpec.version) from $($nodeSpec.source)."
   $download = Join-Path ([IO.Path]::GetTempPath()) ("wording-lens-node-{0}.zip" -f [guid]::NewGuid().ToString('N'))
   $stage = Join-Path ([IO.Path]::GetTempPath()) ("wording-lens-node-{0}" -f [guid]::NewGuid().ToString('N'))
@@ -39,7 +45,8 @@ if (-not (Test-Path -LiteralPath $nodeExe) -or -not (Test-Path -LiteralPath $npm
       throw "SHA-256 mismatch for $($nodeSpec.source): expected $($nodeSpec.sha256), got $actual."
     }
     Expand-Archive -LiteralPath $download -DestinationPath $stage -Force
-    $expanded = Join-Path $stage 'node-v22.14.0-win-x64'
+    $expanded = Get-ChildItem -LiteralPath $stage -Directory -Filter "node-v$($nodeSpec.version)-win-x64" | Select-Object -First 1 -ExpandProperty FullName
+    if (-not $expanded) { throw "The Node.js archive did not contain the expected version directory for $($nodeSpec.version)." }
     if (-not (Test-Path -LiteralPath (Join-Path $expanded 'node.exe'))) { throw 'The Node.js archive did not contain node.exe.' }
     if (Test-Path -LiteralPath $nodeRoot) { Remove-Item -LiteralPath $nodeRoot -Recurse -Force }
     New-Item -ItemType Directory -Force -Path (Split-Path $nodeRoot) | Out-Null
@@ -71,11 +78,15 @@ try {
   }
   if ($LASTEXITCODE -ne 0) { throw "npm dependency installation exited with $LASTEXITCODE." }
   Write-Phase 'Installing the pinned electron-builder release tool in the user-local toolchain.'
-  & $npmCmd install --global --prefix $toolRoot --no-audit --no-fund --ignore-scripts 'electron-builder@26.15.3'
+  & $npmCmd install --global --prefix $toolRoot --no-audit --no-fund --ignore-scripts ("electron-builder@{0}" -f $builderSpec.version)
   if ($LASTEXITCODE -ne 0) { throw "electron-builder installation exited with $LASTEXITCODE." }
 } finally { Pop-Location }
 
 $env:PATH = "$toolRoot;$toolRoot\node_modules\.bin;$env:PATH"
+$builderCommand = Get-Command electron-builder.cmd -ErrorAction SilentlyContinue
+if (-not $builderCommand) { throw 'The pinned electron-builder command was not found after installation.' }
+$builderVersion = (& $builderCommand.Source --version).Trim()
+if ($builderVersion -ne $builderSpec.version) { throw "electron-builder version mismatch: expected $($builderSpec.version), got $builderVersion." }
 $electronPackage = Join-Path $root 'node_modules\electron\package.json'
 if (-not (Test-Path -LiteralPath $electronPackage)) { throw "The declared Electron dependency is missing: $electronPackage" }
 $electronInstall = Join-Path $root 'node_modules\electron\install.js'

@@ -108,7 +108,15 @@ jobs:
           if ($assets.Count -lt 3) { throw 'Release asset collection did not find Setup.exe, RELEASES, and a full .nupkg.' }
           gh release upload $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY $assets
 
-      - name: Capture completion time after asset publication
+      - name: Publish the draft exactly once
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+        run: |
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "draft=false" | Out-Null
+
+      - name: Capture completion time after final publication
         if: ${{ success() }}
         id: completion
         shell: pwsh
@@ -116,7 +124,7 @@ jobs:
           $completed = (Get-Date).ToUniversalTime().ToString('o')
           "completed=$completed" >> $env:GITHUB_OUTPUT
 
-      - name: Write and update draft release notes by release ID
+      - name: Write and update published release notes by release ID
         if: ${{ success() }}
         shell: pwsh
         env:
@@ -130,14 +138,13 @@ jobs:
           pwsh -NoProfile -File scripts/write-release-notes.ps1 -OutputPath packaging/release-staging/RELEASE-NOTES.md -Tag $env:RELEASE_TAG -StartedAt $env:STARTED_AT -CompletedAt $env:COMPLETED_AT -LineCountPath packaging/release-staging/line-count.json -ReceiptPath dist/squirrel-windows/source-receipt.json -CodeName $env:CODE_NAME -CodeNameUrl $env:CODE_NAME_URL
           gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "body=@packaging/release-staging/RELEASE-NOTES.md"
 
-      - name: Publish the draft exactly once and verify it is non-draft
+      - name: Verify the published release and every asset
         if: ${{ success() }}
         shell: pwsh
         env:
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" -F "draft=false" | Out-Null
           $record = gh api "repos/$env:GITHUB_REPOSITORY/releases/$env:RELEASE_ID" | ConvertFrom-Json
           if ($record.draft -ne $false -or $record.tag_name -ne $env:RELEASE_TAG) { throw 'Published release verification failed.' }
           $required = @('RELEASES')

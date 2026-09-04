@@ -36,6 +36,9 @@ try {
 
 $expected = @(
   (Join-Path $root 'dist-electron\apps\desktop\electron\main.js'),
+  (Join-Path $root 'dist-electron\apps\desktop\electron\preload.js'),
+  (Join-Path $root 'dist-electron\packages\core\src\provenance.js'),
+  (Join-Path $root 'dist-electron\packages\integration\vocabulary-boundary.js'),
   (Join-Path $root 'dist\renderer\index.html')
 )
 $missing = @($expected | Where-Object { -not (Test-Path -LiteralPath $_) })
