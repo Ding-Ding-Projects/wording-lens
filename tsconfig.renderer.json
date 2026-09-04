@@ -16,5 +16,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["apps/desktop/src", "apps/desktop/tests", "packages/core/src", "packages/core/tests", "vite.config.ts"]
+  "include": ["apps/desktop/src", "apps/desktop/.generated", "apps/desktop/tests", "packages/core/src", "packages/core/tests", "vite.config.ts"]
 }

@@ -1,9 +1,9 @@
-import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
-import { fileURLToPath, URL } from "node:url";
+const { defineConfig } = require("vitest/config");
+const react = require("@vitejs/plugin-react");
+const { fileURLToPath, URL } = require("node:url");
 
-export default defineConfig({
-  plugins: [react()],
+module.exports = defineConfig({
+  plugins: [react.default ? react.default() : react()],
   resolve: { alias: { "@core": fileURLToPath(new URL("./packages/core/src", import.meta.url)) } },
   test: {
     environment: "jsdom",

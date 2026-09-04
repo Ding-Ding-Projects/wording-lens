@@ -1,10 +1,10 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { fileURLToPath, URL } from "node:url";
+const { defineConfig } = require("vite");
+const react = require("@vitejs/plugin-react");
+const { fileURLToPath, URL } = require("node:url");
 
-export default defineConfig({
+module.exports = defineConfig({
   root: "apps/desktop",
-  plugins: [react()],
+  plugins: [react.default ? react.default() : react()],
   resolve: {
     alias: {
       "@core": fileURLToPath(new URL("./packages/core/src", import.meta.url)),

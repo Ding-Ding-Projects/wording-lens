@@ -1,5 +1,5 @@
 import type { AppProvenance } from "./types";
-import { GENERATED_BUILD_METADATA } from "./generated-build-metadata";
+import { GENERATED_BUILD_METADATA } from "../../../apps/desktop/.generated/build-metadata";
 
 export const APP_ID = "wording-lens";
 export const SHIPPED_DISPLAY_NAME = "Wording Lens";
