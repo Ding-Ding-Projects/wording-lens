@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       listHistory: (): Promise<unknown> => ipcRenderer.invoke("history:list"),
       exportHistory: (): Promise<unknown> => ipcRenderer.invoke("history:export"),
       listNotifications: (includeDismissed?: boolean): Promise<readonly NotificationRecord[]> => ipcRenderer.invoke("notifications:list", includeDismissed),
-      addNotification: (level: NotificationRecord["level"], title: string, body: string): Promise<NotificationRecord> => ipcRenderer.invoke("notifications:add", level, title, body),
+      publishNotification: (eventId: "settings-saved" | "operation-queued" | "operation-cancelled" | "private-profile-cleared"): Promise<NotificationRecord> => ipcRenderer.invoke("notifications:publish", eventId),
       dismissNotifications: (ids: readonly string[]): Promise<number> => ipcRenderer.invoke("notifications:dismiss", ids),
       listEditors: (): Promise<readonly EditorCandidate[]> => ipcRenderer.invoke("editors:list"),
       previewEditor: (editor: EditorCandidate["id"], target: string, targetKind: "file" | "folder"): Promise<unknown> => ipcRenderer.invoke("editors:preview", editor, target, targetKind),

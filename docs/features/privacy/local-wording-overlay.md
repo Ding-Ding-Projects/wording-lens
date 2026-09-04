@@ -44,6 +44,35 @@ file-picker permissions, encryption, storage, and deletion. If validation or
 cache recovery fails, the original wording remains active and the UI can offer
 the local replace or clear action without exposing payload details.
 
+### Desktop and website boundaries
+
+The desktop accepts privileged requests only from its exact main renderer document.
+Unexpected navigation, redirects, subframes, and new windows cannot inherit the
+bridge. The private text endpoint accepts only `private-ui` and `accessible-name`;
+an export or unknown destination is rejected.
+
+A configured private unlock cannot be overwritten. Clear the old local profile
+before configuring a replacement. Unlock verification uses a salted scrypt record
+stored with the platform's encrypted-storage provider. Earlier preview records
+using a different verifier shape require a local profile reset.
+
+Pending private writes are serialized. Clear invalidates prior operations and
+locks private presentation immediately, even if removing a cache file fails.
+The failure state explains that local files remain and offers local recovery.
+The last valid map becomes active only after its encrypted write succeeds.
+
+The website invalidates pending file, credential, and cache operations after lock,
+clear, a newer request, or unmount. Its element menu derives generic identities from
+structural position, never displayed text, accessible names, or selected file data.
+Elements containing private wording cannot export their contents. Renderer-created
+desktop notifications use fixed event identifiers so arbitrary private text cannot
+be passed to that durable notification route.
+
+History snapshots use a random per-installation key sealed by the platform provider.
+Sensitive snapshots are refused when persistent encrypted storage is unavailable.
+This does not yet complete the separate local Git history or persistent toy-lock
+requirements; those remain open in the feature inventory.
+
 ## Verification
 
 Focused tests exercise the parser, state transition, protected spans, typed

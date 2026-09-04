@@ -285,7 +285,8 @@ function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
 export async function createLocalCredential(
   password: string,
 ): Promise<{ record: LocalCredentialRecord; key: Uint8Array }> {
-  if (!password) throw new Error('Enter a local unlock value.');
+  if (typeof password !== 'string' || !password || password.length > 1024)
+    throw new Error('Enter a local unlock value within the supported limit.');
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await derive(password, salt);
   const verifier = await digest(key);
@@ -306,17 +307,28 @@ export async function unlockLocalCredential(
   record: LocalCredentialRecord,
 ): Promise<Uint8Array | null> {
   if (
+    typeof password !== 'string' ||
+    password.length > 1024 ||
     !record ||
     record.version !== 1 ||
     record.algorithm !== 'PBKDF2-SHA-256' ||
-    record.iterations !== 310000
+    record.iterations !== 310000 ||
+    typeof record.salt !== 'string' ||
+    record.salt.length !== 24 ||
+    typeof record.verifier !== 'string' ||
+    record.verifier.length !== 44 ||
+    Object.keys(record).sort().join(',') !==
+      'algorithm,iterations,salt,verifier,version'
   )
     return null;
   try {
-    const key = await derive(password, base64ToBytes(record.salt));
-    return constantTimeEqual(await digest(key), base64ToBytes(record.verifier))
-      ? key
-      : null;
+    const salt = base64ToBytes(record.salt);
+    const verifier = base64ToBytes(record.verifier);
+    if (salt.length !== 16 || verifier.length !== 32) return null;
+    const key = await derive(password, salt);
+    if (constantTimeEqual(await digest(key), verifier)) return key;
+    key.fill(0);
+    return null;
   } catch {
     return null;
   }
@@ -351,7 +363,16 @@ export async function decryptLocalValue(
   value: EncryptedLocalValue,
   keyBytes: Uint8Array,
 ): Promise<string> {
-  if (!value || value.version !== 1 || value.algorithm !== 'AES-GCM')
+  if (
+    !value ||
+    value.version !== 1 ||
+    value.algorithm !== 'AES-GCM' ||
+    typeof value.iv !== 'string' ||
+    value.iv.length !== 16 ||
+    typeof value.ciphertext !== 'string' ||
+    value.ciphertext.length > 360_000 ||
+    Object.keys(value).sort().join(',') !== 'algorithm,ciphertext,iv,version'
+  )
     throw new Error('Unsupported local cache.');
   const key = await crypto.subtle.importKey(
     'raw',

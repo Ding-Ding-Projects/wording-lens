@@ -31,7 +31,7 @@ declare global {
       listHistory: () => Promise<unknown>;
       exportHistory: () => Promise<unknown>;
       listNotifications: (includeDismissed?: boolean) => Promise<readonly NotificationRecord[]>;
-      addNotification: (level: NotificationRecord["level"], title: string, body: string) => Promise<NotificationRecord>;
+      publishNotification: (eventId: "settings-saved" | "operation-queued" | "operation-cancelled" | "private-profile-cleared") => Promise<NotificationRecord>;
       dismissNotifications: (ids: readonly string[]) => Promise<number>;
       listEditors: () => Promise<readonly EditorCandidate[]>;
       previewEditor: (editor: EditorCandidate["id"], target: string, targetKind: "file" | "folder") => Promise<unknown>;

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DesktopServices } from "../../packages/desktop-services/src/index.js";
 import { generateTotpCode } from "../../packages/security/totp.js";
+import { decryptSnapshot } from "../../packages/history/history.js";
 
 const roots: string[] = [];
 
@@ -83,7 +84,7 @@ describe("desktop services", () => {
     expect(restarted.renderPrivateText("Alpha code 123", "private-ui", [{ start: 6, end: 10 }])).toBe("Beta code 123");
   });
 
-  it("reports clear failures without purging live access state", async () => {
+  it("locks presentation immediately even when cache removal fails", async () => {
     const { root, services } = await service();
     await services.configureVocabularyUnlock("clear-unlock");
     expect(services.unlockVocabulary("clear-unlock")).toBe(true);
@@ -91,7 +92,28 @@ describe("desktop services", () => {
     await rm(join(root, "vocabulary.bin"), { force: true });
     await mkdir(join(root, "vocabulary.bin"));
     await expect(services.clearVocabulary()).rejects.toThrow("Unable to clear private vocabulary state");
-    expect(services.vocabularyStatus()).toMatchObject({ authenticated: true, loaded: true, entryCount: 1 });
+    expect(services.vocabularyStatus()).toMatchObject({ authenticated: false, loaded: false, entryCount: 0 });
+    expect(() => services.privateVocabularyEntries()).toThrow("locked");
+  });
+
+  it("does not allow an existing private unlock to be replaced", async () => {
+    const { services } = await service();
+    await services.configureVocabularyUnlock("first-local-value");
+    await expect(services.configureVocabularyUnlock("different-local-value")).rejects.toThrow("Clear the existing");
+    expect(services.unlockVocabulary("different-local-value")).toBe(false);
+    expect(services.unlockVocabulary("first-local-value")).toBe(true);
+  });
+
+  it("serializes clear after pending saves without resurrecting the cache", async () => {
+    const { root, services } = await service();
+    await services.configureVocabularyUnlock("race-value");
+    expect(services.unlockVocabulary("race-value")).toBe(true);
+    const saving = services.saveVocabulary(new TextEncoder().encode('{"schemaVersion":1,"entries":{"Alpha":"Beta"}}'));
+    const results = await Promise.allSettled([saving, services.clearVocabulary()]);
+    expect(results[1].status).toBe("fulfilled");
+    expect(services.vocabularyStatus().loaded).toBe(false);
+    await expect(readFile(join(root, "vocabulary.bin"))).rejects.toThrow();
+    await expect(readFile(join(root, "vocabulary-unlock.bin"))).rejects.toThrow();
   });
 
   it("queues a real typed file operation and persists notifications", async () => {
@@ -109,6 +131,33 @@ describe("desktop services", () => {
     expect((await services.listOperations()).find((entry) => entry.id === queued.id)?.state).toBe("succeeded");
     await services.addNotification("success", "Operation complete", "The file was read locally.");
     expect(services.listNotifications(false)).toHaveLength(1);
+  });
+
+  it("only accepts fixed notification identifiers from the renderer", async () => {
+    const { services } = await service();
+    expect(() => services.publishNotification('neutral private fixture')).toThrow('Unknown notification');
+    const event = await services.publishNotification('settings-saved');
+    expect(event.title).toBe('Settings saved');
+    expect(services.listNotifications()).toHaveLength(1);
+  });
+
+  it("uses an installation key for history and rejects the known zero key", async () => {
+    const { root, services } = await service();
+    const revision = await services.recordHistory({ stableRecordId: 'neutral-record', action: 'created', label: 'Created local record', snapshot: new TextEncoder().encode('neutral data') });
+    expect(() => decryptSnapshot(revision.snapshot!, new Uint8Array(32), 'neutral-record')).toThrow();
+    const before = await readFile(join(root, 'history-key.bin'));
+    const restarted = new DesktopServices({ dataDirectory: root, vocabularyCrypto: { seal: (bytes) => new Uint8Array(bytes).map((byte) => byte ^ 0xa5), unseal: (bytes) => new Uint8Array(bytes).map((byte) => byte ^ 0xa5) } });
+    await restarted.ready();
+    expect(await readFile(join(root, 'history-key.bin'))).toEqual(before);
+    const key = new Uint8Array(before).map((byte) => byte ^ 0xa5);
+    expect(new TextDecoder().decode(decryptSnapshot(revision.snapshot!, key, 'neutral-record'))).toBe('neutral data');
+  });
+
+  it("refuses sensitive snapshots when protected storage is unavailable", async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wording-lens-no-vault-')); roots.push(root);
+    const services = new DesktopServices({ dataDirectory: root });
+    await services.ready();
+    await expect(services.recordHistory({ stableRecordId: 'neutral-record', action: 'created', label: 'Created local record', snapshot: new Uint8Array([1]) })).rejects.toThrow('unavailable');
   });
 
   it("validates schedules and keeps editor previews allowlisted", async () => {

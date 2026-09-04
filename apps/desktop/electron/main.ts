@@ -1,5 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { privateSink, sameRendererDocument, validateDevelopmentUrl } from "./ipc-trust";
 import { BUILD_PROVENANCE } from "../../../packages/core/src/provenance";
 import { resolveRendererEntry } from "./paths";
 import { DesktopServices, type FilePicker } from "../../../packages/desktop-services/src/index.js";
@@ -7,6 +9,7 @@ import type { OperationRequest } from "../../../packages/operations/types.js";
 
 let mainWindow: BrowserWindow | null = null;
 let services: DesktopServices | null = null;
+let rendererDocument = "";
 // DesktopServices stores the encrypted private cache as vocabulary.bin.
 
 function requireServices(): DesktopServices {
@@ -15,7 +18,7 @@ function requireServices(): DesktopServices {
 }
 
 function assertTrustedSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Untrusted IPC sender");
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame || !event.senderFrame || !sameRendererDocument(event.senderFrame.url, rendererDocument)) throw new Error("Untrusted IPC sender");
 }
 
 function operationRequest(value: unknown): OperationRequest {
@@ -68,7 +71,7 @@ function registerWindowHandlers(): void {
   ipcMain.handle("history:list", (event) => { assertTrustedSender(event); return requireServices().listHistory(); });
   ipcMain.handle("history:export", (event) => { assertTrustedSender(event); return requireServices().exportHistory(); });
   ipcMain.handle("notifications:list", (event, includeDismissed: unknown) => { assertTrustedSender(event); return requireServices().listNotifications(includeDismissed !== false); });
-  ipcMain.handle("notifications:add", (event, level: unknown, title: unknown, body: unknown) => { assertTrustedSender(event); return requireServices().addNotification(level as Parameters<DesktopServices["addNotification"]>[0], String(title), String(body)); });
+  ipcMain.handle("notifications:publish", (event, eventId: unknown) => { assertTrustedSender(event); return requireServices().publishNotification(eventId); });
   ipcMain.handle("notifications:dismiss", (event, ids: unknown) => { assertTrustedSender(event); return requireServices().dismissNotifications(Array.isArray(ids) ? ids.map(String) : []); });
   ipcMain.handle("editors:list", (event) => { assertTrustedSender(event); return requireServices().detectEditors(); });
   ipcMain.handle("editors:preview", (event, editor: unknown, target: unknown, targetKind: unknown) => { assertTrustedSender(event); return requireServices().editorLaunchPreview(editor as Parameters<DesktopServices["editorLaunchPreview"]>[0], String(target), targetKind === "folder" ? "folder" : "file"); });
@@ -77,7 +80,7 @@ function registerWindowHandlers(): void {
   ipcMain.handle("vocabulary:unlock", (event, secret: unknown) => { assertTrustedSender(event); return requireServices().unlockVocabulary(String(secret)); });
   ipcMain.handle("vocabulary:status", (event) => { assertTrustedSender(event); return requireServices().vocabularyStatus(); });
   ipcMain.handle("vocabulary:entries", (event) => { assertTrustedSender(event); return requireServices().privateVocabularyEntries(); });
-  ipcMain.handle("vocabulary:render-private", (event, text: unknown, boundary: unknown, spans: unknown) => { assertTrustedSender(event); return requireServices().renderPrivateText(String(text), boundary === "accessible-name" ? "accessible-name" : "private-ui", Array.isArray(spans) ? spans : []); });
+  ipcMain.handle("vocabulary:render-private", (event, text: unknown, boundary: unknown, spans: unknown) => { assertTrustedSender(event); return requireServices().renderPrivateText(String(text), privateSink(boundary), Array.isArray(spans) ? spans : []); });
   ipcMain.handle("vocabulary:save", async (event, bytes: unknown) => { assertTrustedSender(event); return requireServices().saveVocabulary(bytes instanceof Uint8Array ? bytes : new Uint8Array()); });
   ipcMain.handle("vocabulary:clear", (event) => { assertTrustedSender(event); return requireServices().clearVocabulary(); });
   ipcMain.handle("security:create-lock", (event, targetId: unknown, policy: unknown, duration: unknown, factors: unknown) => { assertTrustedSender(event); return requireServices().createLock(String(targetId), policy as Parameters<DesktopServices["createLock"]>[1], duration as Parameters<DesktopServices["createLock"]>[2], factors as Parameters<DesktopServices["createLock"]>[3]); });
@@ -125,8 +128,12 @@ async function createWindow(): Promise<void> {
   });
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) await mainWindow.loadURL(devUrl);
-  else await mainWindow.loadFile(resolveRendererEntry(__dirname));
+  rendererDocument = devUrl && !app.isPackaged ? validateDevelopmentUrl(devUrl) : pathToFileURL(resolveRendererEntry(__dirname)).href;
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, url) => { if (!sameRendererDocument(url, rendererDocument)) event.preventDefault(); });
+  mainWindow.webContents.on("will-redirect", (event, url) => { if (!sameRendererDocument(url, rendererDocument)) event.preventDefault(); });
+  mainWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  await mainWindow.loadURL(rendererDocument);
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 

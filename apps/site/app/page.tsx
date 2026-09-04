@@ -57,6 +57,7 @@ import {
   type PersonalVocabulary,
 } from '@/lib/local-private';
 import { SITE_PROVENANCE } from '@/.generated/site-provenance';
+import { describeElement, PrivateOperationEpoch } from '@/lib/private-boundary';
 
 type TabId =
   | 'home'
@@ -905,7 +906,30 @@ function SettingsPanel({
     ...defaultSearchConfig,
   });
   const fileRef = useRef<HTMLInputElement>(null);
-  const wordingAttemptRef = useRef(0);
+  const wordingEpoch = useRef(new PrivateOperationEpoch());
+  const keyRef = useRef<Uint8Array | null>(null);
+
+  function lockPrivateProfile() {
+    wordingEpoch.current.invalidate();
+    keyRef.current?.fill(0);
+    keyRef.current = null;
+    setUnlocked(false);
+    setLocalKey(null);
+    setPrivateVocabulary(null);
+    setAtlasOpen(false);
+    setAtlasQuery('');
+    setAtlasSearch({ ...defaultSearchConfig });
+    setFileState('Local profile locked. Original wording is active.');
+  }
+
+  useEffect(
+    () => () => {
+      wordingEpoch.current.invalidate();
+      keyRef.current?.fill(0);
+      keyRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     document.documentElement.dataset.density = density.toLocaleLowerCase();
@@ -931,6 +955,8 @@ function SettingsPanel({
 
   useEffect(() => {
     if (!localKey) return;
+    const attempt = wordingEpoch.current.begin();
+    let active = true;
     const cached = window.localStorage.getItem(
       'wl.privateVocabulary.encrypted',
     );
@@ -942,11 +968,13 @@ function SettingsPanel({
           localKey,
         );
         const parsed = parsePersonalVocabulary(plaintext);
+        if (!active || !wordingEpoch.current.isCurrent(attempt)) return;
         setPrivateVocabulary(parsed);
         setFileState(
           'Private wording loaded locally from the validated encrypted cache.',
         );
       } catch {
+        if (!active || !wordingEpoch.current.isCurrent(attempt)) return;
         window.localStorage.removeItem('wl.privateVocabulary.encrypted');
         setPrivateVocabulary(null);
         setFileState(
@@ -954,20 +982,31 @@ function SettingsPanel({
         );
       }
     })();
+    return () => {
+      active = false;
+    };
   }, [localKey]);
 
   async function createProfile() {
+    const attempt = wordingEpoch.current.begin();
     try {
       const created = await createLocalCredential(unlockValue);
+      if (!wordingEpoch.current.isCurrent(attempt)) {
+        created.key.fill(0);
+        return;
+      }
       window.localStorage.setItem(
         'wl.localCredential',
         JSON.stringify(created.record),
       );
       setCredentialExists(true);
       setUnlocked(true);
+      keyRef.current?.fill(0);
+      keyRef.current = created.key;
       setLocalKey(created.key);
       setUnlockValue('');
     } catch (error) {
+      if (!wordingEpoch.current.isCurrent(attempt)) return;
       setFileState(
         error instanceof Error
           ? error.message
@@ -977,6 +1016,7 @@ function SettingsPanel({
   }
 
   async function unlockProfile() {
+    const attempt = wordingEpoch.current.begin();
     try {
       const raw = window.localStorage.getItem('wl.localCredential');
       if (!raw) {
@@ -987,14 +1027,21 @@ function SettingsPanel({
         unlockValue,
         JSON.parse(raw) as LocalCredentialRecord,
       );
+      if (!wordingEpoch.current.isCurrent(attempt)) {
+        key?.fill(0);
+        return;
+      }
       if (!key) {
         setFileState('The local unlock value did not match.');
         return;
       }
       setUnlocked(true);
+      keyRef.current?.fill(0);
+      keyRef.current = key;
       setLocalKey(key);
       setUnlockValue('');
     } catch {
+      if (!wordingEpoch.current.isCurrent(attempt)) return;
       setFileState(
         'The local credential record was invalid. Reset local site data to recover.',
       );
@@ -1008,6 +1055,7 @@ function SettingsPanel({
         setSchoolCredential(created.record);
       }
       setSchoolEnabled(true);
+      lockPrivateProfile();
       setSchoolUnlock('');
       setSchoolMessage(
         `${schoolName} is active. English-only presentation is in effect.`,
@@ -1051,14 +1099,17 @@ function SettingsPanel({
       );
       return;
     }
-    const attempt = ++wordingAttemptRef.current;
+    const attempt = wordingEpoch.current.begin();
     try {
+      if (file.size > 256 * 1024)
+        throw new Error('The file exceeds the supported byte limit.');
       const parsed = parsePersonalVocabulary(await file.arrayBuffer());
+      if (!wordingEpoch.current.isCurrent(attempt)) return;
       const encrypted = await encryptLocalValue(
         JSON.stringify(parsed),
         localKey,
       );
-      if (attempt !== wordingAttemptRef.current) return;
+      if (!wordingEpoch.current.isCurrent(attempt)) return;
       window.localStorage.setItem(
         'wl.privateVocabulary.encrypted',
         JSON.stringify(encrypted),
@@ -1068,6 +1119,7 @@ function SettingsPanel({
         'Private wording loaded locally. The source name and path were not retained.',
       );
     } catch (error) {
+      if (!wordingEpoch.current.isCurrent(attempt)) return;
       setFileState(
         error instanceof Error
           ? `File rejected: ${error.message}`
@@ -1077,11 +1129,21 @@ function SettingsPanel({
   }
 
   function clearVocabulary() {
-    wordingAttemptRef.current += 1;
-    window.localStorage.removeItem('wl.privateVocabulary.encrypted');
+    wordingEpoch.current.invalidate();
     if (fileRef.current) fileRef.current.value = '';
     setPrivateVocabulary(null);
     setAtlasOpen(false);
+    setAtlasQuery('');
+    setAtlasSearch({ ...defaultSearchConfig });
+    try {
+      window.localStorage.removeItem('wl.privateVocabulary.encrypted');
+    } catch {
+      lockPrivateProfile();
+      setFileState(
+        'Local storage could not be cleared. This profile is locked; clear browser storage to remove the retained cache.',
+      );
+      return;
+    }
     setFileState('No private wording file loaded. Original wording is active.');
   }
   const modes: Array<[string, boolean, (value: boolean) => void]> = [
@@ -1227,7 +1289,10 @@ function SettingsPanel({
       {showSetting(
         'private wording local file upload replace clear reset atlas',
       ) && (
-        <section className="surface-card settings-card private-settings">
+        <section
+          className="surface-card settings-card private-settings"
+          data-private-content
+        >
           <div className="settings-title">
             <Upload size={21} />
             <div>
@@ -1263,19 +1328,7 @@ function SettingsPanel({
               </Button>
             )}
             {unlocked && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  wordingAttemptRef.current += 1;
-                  setUnlocked(false);
-                  setLocalKey(null);
-                  setPrivateVocabulary(null);
-                  setAtlasOpen(false);
-                  setFileState(
-                    'Local profile locked. Original wording is active.',
-                  );
-                }}
-              >
+              <Button variant="ghost" onClick={lockPrivateProfile}>
                 Lock now
               </Button>
             )}
@@ -1657,6 +1710,7 @@ type SiteContextState = {
   key: string;
   label: string;
   target: HTMLElement;
+  containsPrivateContent: boolean;
 };
 
 function markElementLock(target: HTMLElement, locked: boolean) {
@@ -1795,8 +1849,12 @@ function SiteContextMenu({
               type="button"
               role="menuitem"
               key={action.id}
+              disabled={
+                action.id === 'export' && context.containsPrivateContent
+              }
               onClick={() => {
                 if (action.id === 'export') {
+                  if (context.containsPrivateContent) return;
                   downloadText(
                     'wording-lens-element.json',
                     JSON.stringify(
@@ -1813,6 +1871,12 @@ function SiteContextMenu({
               {action.label}
             </button>
           ))}
+          {context.containsPrivateContent && (
+            <p>
+              Private wording and file information are excluded from element
+              exports.
+            </p>
+          )}
           {actions.length === 0 && <p className="muted">No matching action.</p>}
         </>
       )}
@@ -1954,19 +2018,7 @@ export default function HomePage() {
       target.closest<HTMLElement>(
         'button, input, select, textarea, a, [data-element-id], section, article, header, footer',
       ) ?? target;
-    const rawLabel =
-      actionable.getAttribute('aria-label') ||
-      actionable.getAttribute('title') ||
-      actionable.textContent?.trim() ||
-      actionable.tagName.toLocaleLowerCase();
-    const label = rawLabel.replace(/\s+/g, ' ').slice(0, 80);
-    const key = (
-      actionable.id ||
-      actionable.dataset.elementId ||
-      `${actionable.tagName}-${label}`
-    )
-      .replace(/[^a-z0-9._-]+/gi, '-')
-      .slice(0, 120);
+    const { key, label, containsPrivateContent } = describeElement(actionable);
     contextOpener.current = actionable;
     try {
       const appearance = JSON.parse(
@@ -1989,6 +2041,7 @@ export default function HomePage() {
       key,
       label,
       target: actionable,
+      containsPrivateContent,
     });
   }, []);
   const closeContext = useCallback(() => {
@@ -2125,9 +2178,7 @@ export default function HomePage() {
         event.preventDefault();
         event.stopPropagation();
         openContext(locked, 16, 96);
-        notify(
-          `${locked.getAttribute('aria-label') || locked.textContent?.trim().slice(0, 60) || 'This element'} is locally locked.`,
-        );
+        notify(`${describeElement(locked).label} is locally locked.`);
       }}
     >
       <header className="top-bar" data-element-id="top-bar">

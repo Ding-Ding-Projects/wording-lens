@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { access, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -56,6 +56,14 @@ export interface NotificationRecord {
   createdAt: string;
   dismissedAt?: string;
 }
+
+const PUBLIC_NOTIFICATION_EVENTS = Object.freeze({
+  'settings-saved': { title: 'Settings saved', body: 'Presentation preferences were saved locally.' },
+  'operation-queued': { title: 'Operation queued', body: 'A reviewed operation was added to the local queue.' },
+  'operation-cancelled': { title: 'Cancellation requested', body: 'The operation received a cancellation request.' },
+  'private-profile-cleared': { title: 'Private profile cleared', body: 'Private wording and its local unlock were cleared.' },
+});
+export type PublicNotificationEvent = keyof typeof PUBLIC_NOTIFICATION_EVENTS;
 
 export interface AppSettings {
   displayName: string;
@@ -187,7 +195,8 @@ export class DesktopServices {
   private readonly settings: JsonStore<AppSettings>;
   private readonly notifications: JsonStore<NotificationRecord[]>;
   private readonly updater: JsonStore<UpdaterState>;
-  private readonly history: AppendOnlyHistory;
+  private history: AppendOnlyHistory;
+  private historyKeyPersistent = false;
   private readonly locks: ToyLockManager;
   private readonly tickets = new LocalSupportTicketStore();
   private readonly ladder = new UnlockLadderService();
@@ -205,6 +214,9 @@ export class DesktopServices {
   private vocabulary: VocabularyDocument | null = null;
   private vocabularyAuthenticated = false;
   private vocabularyVerifier: string | null = null;
+  private vocabularyEpoch = 0;
+  private vocabularyWrite: Promise<void> = Promise.resolve();
+  private configuringVocabulary = false;
 
   public constructor(options: DesktopServicesOptions) {
     this.now = options.now ?? (() => new Date());
@@ -213,7 +225,7 @@ export class DesktopServices {
     this.notifications = new JsonStore(join(this.dataDirectory, "notifications.json"), []);
     this.updater = new JsonStore(join(this.dataDirectory, "updater.json"), { state: "idle", unsigned: true });
     this.locks = new ToyLockManager(new MemoryCredentialVault());
-    this.history = new AppendOnlyHistory(new JsonHistoryBackend(join(this.dataDirectory, "history.json")), new Uint8Array(32));
+    this.history = new AppendOnlyHistory(new JsonHistoryBackend(join(this.dataDirectory, "history.json")), randomBytes(32));
     this.registry = options.registry ?? createDefaultAdapterRegistry();
     this.ollamaBaseUrl = options.ollamaBaseUrl ?? "http://127.0.0.1:11434";
     this.pick = options.pick;
@@ -229,6 +241,7 @@ export class DesktopServices {
     this.updaterValue = await this.updater.load();
     await this.queue.ready();
     await this.queue.recover();
+    await this.initializeHistoryKey();
     await this.loadVocabularyVerifier();
     await this.loadVocabularyCache();
   }
@@ -324,12 +337,31 @@ export class DesktopServices {
   public validateHomeAssistant(input: unknown): boolean { return validateHomeAssistantState(input); }
 
   public async recordHistory(input: { stableRecordId: string; action: HistoryAction; label: string; snapshot?: Uint8Array }): Promise<HistoryRevision> {
+    if (input.snapshot && !this.historyKeyPersistent) throw new Error('Encrypted history storage is unavailable');
     const result = await this.history.tryRecord({ revisionId: randomUUID(), ...input });
     if (!result.historyRecorded) throw new Error("Local history is unavailable");
     return result.revision;
   }
   public async listHistory(): Promise<readonly HistoryRevision[]> { return (await this.history.exportRedacted()).revisions.slice(-MAX_HISTORY_COUNT); }
   public async exportHistory(): Promise<Awaited<ReturnType<AppendOnlyHistory["exportRedacted"]>>> { return this.history.exportRedacted(); }
+
+  private async initializeHistoryKey(): Promise<void> {
+    if (!this.vocabularyCrypto) return;
+    const keyPath = join(this.dataDirectory, 'history-key.bin');
+    let key: Uint8Array;
+    try {
+      const encrypted = await readFile(keyPath);
+      if (encrypted.length > 4096) throw new Error('Invalid encrypted history key');
+      key = this.vocabularyCrypto.unseal(encrypted);
+      if (key.length !== 32) throw new Error('Invalid encrypted history key');
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) return;
+      key = randomBytes(32);
+      await atomicWrite(keyPath, this.vocabularyCrypto.seal(key));
+    }
+    this.history = new AppendOnlyHistory(new JsonHistoryBackend(join(this.dataDirectory, 'history.json')), key);
+    this.historyKeyPersistent = true;
+  }
 
   public async addNotification(level: NotificationRecord["level"], title: string, body: string): Promise<NotificationRecord> {
     const record: NotificationRecord = { id: randomUUID(), level, title: boundedText(title, "notification title", 200), body: boundedText(body, "notification body", 4_000), createdAt: iso(this.now) };
@@ -395,31 +427,67 @@ export class DesktopServices {
   }
 
   public async configureVocabularyUnlock(secret: string): Promise<void> {
+    if (this.configuringVocabulary || this.vocabularyVerifier || this.vocabulary) throw new Error("Clear the existing private profile before configuring a new unlock");
+    if (!this.vocabularyCrypto) throw new Error("Private encrypted storage is unavailable");
     const value = boundedText(secret, "unlock secret", 512);
-    const verifier = createHash("sha256").update(value, "utf8").digest("hex");
-    if (this.vocabularyCrypto) await atomicWrite(join(this.dataDirectory, "vocabulary-unlock.bin"), this.vocabularyCrypto.seal(new TextEncoder().encode(verifier)));
-    this.vocabularyVerifier = verifier;
-    this.vocabularyAuthenticated = false;
+    const salt = randomBytes(16);
+    const verifier = JSON.stringify({ version: 1, algorithm: "scrypt", salt: salt.toString("hex"), hash: scryptSync(value, salt, 32).toString("hex") });
+    const epoch = ++this.vocabularyEpoch;
+    this.configuringVocabulary = true;
+    try {
+      await this.writePrivateState(async () => {
+        if (epoch !== this.vocabularyEpoch) throw new Error("Private operation cancelled");
+        await atomicWrite(join(this.dataDirectory, "vocabulary-unlock.bin"), this.vocabularyCrypto!.seal(new TextEncoder().encode(verifier)));
+        if (epoch !== this.vocabularyEpoch) throw new Error("Private operation cancelled");
+        this.vocabularyVerifier = verifier;
+        this.vocabularyAuthenticated = false;
+      });
+    } finally { this.configuringVocabulary = false; }
+  }
+  public publishNotification(eventId: unknown): Promise<NotificationRecord> {
+    if (typeof eventId !== 'string' || !Object.hasOwn(PUBLIC_NOTIFICATION_EVENTS, eventId)) throw new Error('Unknown notification event');
+    const event = PUBLIC_NOTIFICATION_EVENTS[eventId as PublicNotificationEvent];
+    return this.addNotification('info', event.title, event.body);
   }
   public unlockVocabulary(secret: string): boolean {
     if (!this.vocabularyVerifier) return false;
-    const candidate = Buffer.from(createHash("sha256").update(boundedText(secret, "unlock secret", 512), "utf8").digest("hex"));
-    const expected = Buffer.from(this.vocabularyVerifier);
+    const record = JSON.parse(this.vocabularyVerifier) as { salt: string; hash: string };
+    const candidate = scryptSync(boundedText(secret, "unlock secret", 512), Buffer.from(record.salt, "hex"), 32);
+    const expected = Buffer.from(record.hash, "hex");
     this.vocabularyAuthenticated = candidate.length === expected.length && timingSafeEqual(candidate, expected);
+    candidate.fill(0);
     return this.vocabularyAuthenticated;
+  }
+  private writePrivateState(action: () => Promise<void>): Promise<void> {
+    const result = this.vocabularyWrite.then(action);
+    this.vocabularyWrite = result.catch(() => undefined);
+    return result;
   }
   public async saveVocabulary(bytes: Uint8Array): Promise<VocabularyStatus> {
     if (!this.vocabularyAuthenticated) throw new Error("Private wording is locked");
-    this.vocabulary = await parseCanonicalVocabulary(bytes);
-    if (this.vocabularyCrypto) await atomicWrite(join(this.dataDirectory, "vocabulary.bin"), this.vocabularyCrypto.seal(jsonBytes(this.vocabulary)));
+    if (!this.vocabularyCrypto) throw new Error("Private encrypted storage is unavailable");
+    const epoch = ++this.vocabularyEpoch;
+    const parsed = await parseCanonicalVocabulary(bytes);
+    await this.writePrivateState(async () => {
+      if (epoch !== this.vocabularyEpoch || !this.vocabularyAuthenticated) throw new Error("Private operation cancelled");
+      await atomicWrite(join(this.dataDirectory, "vocabulary.bin"), this.vocabularyCrypto!.seal(jsonBytes(parsed)));
+      if (epoch !== this.vocabularyEpoch || !this.vocabularyAuthenticated) throw new Error("Private operation cancelled");
+      this.vocabulary = parsed;
+    });
     return this.vocabularyStatus();
   }
   public async clearVocabulary(): Promise<VocabularyStatus> {
+    this.vocabularyEpoch += 1;
+    this.vocabulary = null;
+    this.vocabularyVerifier = null;
+    this.vocabularyAuthenticated = false;
     try {
-      await rm(join(this.dataDirectory, "vocabulary.bin"), { force: true });
-      await rm(join(this.dataDirectory, "vocabulary-unlock.bin"), { force: true });
-    } catch (error) {
-      throw new Error(`Unable to clear private vocabulary state: ${error instanceof Error ? error.message : "storage error"}`);
+      await this.writePrivateState(async () => {
+        await rm(join(this.dataDirectory, "vocabulary.bin"), { force: true });
+        await rm(join(this.dataDirectory, "vocabulary-unlock.bin"), { force: true });
+      });
+    } catch {
+      throw new Error("Unable to clear private vocabulary state. Private presentation is locked; clear the local data folder to remove retained files.");
     }
     this.vocabulary = null;
     this.vocabularyVerifier = null;
@@ -431,7 +499,8 @@ export class DesktopServices {
     try {
       const encrypted = new Uint8Array(await readFile(join(this.dataDirectory, "vocabulary-unlock.bin")));
       const value = new TextDecoder("utf-8", { fatal: true }).decode(this.vocabularyCrypto.unseal(encrypted));
-      if (/^[\da-f]{64}$/u.test(value)) this.vocabularyVerifier = value;
+      const record = JSON.parse(value) as { version?: unknown; algorithm?: unknown; salt?: unknown; hash?: unknown };
+      if (record.version === 1 && record.algorithm === "scrypt" && typeof record.salt === "string" && /^[\da-f]{32}$/u.test(record.salt) && typeof record.hash === "string" && /^[\da-f]{64}$/u.test(record.hash)) this.vocabularyVerifier = value;
     } catch { this.vocabularyVerifier = null; }
   }
   private async loadVocabularyCache(): Promise<void> {
@@ -452,8 +521,8 @@ export class DesktopServices {
   }
   public renderPrivateText(text: string, boundary: PrivateSinkBoundary, protectedSpans: readonly PrivateTextSpan[] = []): string {
     const source = boundedText(text, "private text", 100_000);
-    if (!this.vocabularyAuthenticated || !this.vocabulary) return source;
     if (boundary !== "private-ui" && boundary !== "accessible-name") throw new Error("Private wording sink boundary is not allowed");
+    if (!this.vocabularyAuthenticated || !this.vocabulary) return source;
     const ranges = [...protectedSpans].sort((left, right) => left.start - right.start || left.end - right.end);
     let output = "";
     let cursor = 0;
