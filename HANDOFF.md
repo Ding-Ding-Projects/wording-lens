@@ -1,5 +1,30 @@
 # Handoff
 
+## 2026-09-04 resumed work, paused again at owner request
+
+- `main` now includes the retained desktop bridge wiring, private-operation race
+  repairs, strict IPC document and sink checks, registered notification events,
+  installation-specific history encryption, restored encrypted toy-lock records,
+  local renderer type checking, and the isolated regex worker package.
+- Focused verification passed: 32 service/security/renderer tests, 13 worker and
+  renderer tests, and renderer/main TypeScript compilation. These are separate
+  focused runs with overlap, not an aggregate count for the final tree.
+- Headless verification is blocked because the installed cheap runtime and its
+  HTTP binding do not expose `list_headless_desktops`, required by the lifecycle
+  helper. A scoped tooling repair was proposed but was not authorized or performed.
+- `task/resume-search-checkpoint` preserves unfinished UI integration of isolated
+  regex filtering and previews at `d6302dc`. The worker package is tested; the final
+  UI integration has not completed its verification and remains outside `main`.
+- `task/resume-build` preserves the Node 22.22.2 pin, .NET hash helpers, immutable
+  icon handling, and interrupted Pages/PowerShell corrections. Installer attempts
+  produced no verified installer. Its final corrections remain unverified.
+- `task/desktop-ui-complete` retains final status-label corrections at `83f3036`.
+  The prior bridge-wiring commit `9750d98` is already integrated into `main`.
+- No new installer, release, deployment, runtime capture, or design parity proof
+  is claimed. Existing inventory gaps remain open.
+- The sections below record the earlier baseline and must not be interpreted as
+  verification of the later interrupted changes.
+
 ## 2026-09-04 preservation closeout
 
 ### Current state
