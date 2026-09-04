@@ -12,6 +12,12 @@ $bootstrap = Get-Content (Join-Path $root 'scripts/bootstrap-dependencies.ps1') 
 $installer = Get-Content (Join-Path $root 'scripts/build-installer.ps1') -Raw
 $counter = Get-Content (Join-Path $root 'scripts/count-lines.ps1') -Raw
 $codename = Get-Content (Join-Path $root 'scripts/select-release-codename.ps1') -Raw
+
+function Assert-SilentInvocationContract([string]$BuildSource, [string]$InstallerSource) {
+  if ($BuildSource -notmatch '(?m)^\s*&\s+\$bootstrap\s+@bootstrapArgs\s*$') { throw 'Build script does not splat the silent bootstrap switch.' }
+  if ($InstallerSource -notmatch '(?m)^\s*&\s+\$build\s+@buildArgs\s*$') { throw 'Installer script does not splat the silent build switch.' }
+  if ($BuildSource -match '&\s+\$bootstrap\s+\$\(' -or $InstallerSource -match '&\s+\$build\s+\$\(') { throw 'A named switch is still being passed as a positional expression.' }
+}
 $required = @(
   'workflow_dispatch', 'isDraft', 'gh release upload', 'assets', 'asset.size',
   'RELEASES', '.nupkg', 'source-receipt.json', 'startedAt', 'draft=false'
@@ -27,4 +33,10 @@ foreach ($needle in @('nodeSpec.version', 'builderSpec.version', 'nodeVersionMis
 foreach ($needle in @('dist-electron\apps\desktop\electron\main.js', 'dist\renderer\index.html', 'source checkout is dirty')) { if ($build -notmatch [regex]::Escape($needle)) { throw "Build contract is missing: $needle" } }
 if ($counter -match 'dist-electron/main\.js|dist/index\.html|--no-save') { throw 'Obsolete packaging contract text remains.' }
 if ($installer -match '(?m)^\s*&\s*\$npm\.Source\s+exec') { throw 'Installer must use the verified pinned electron-builder command.' }
+Assert-SilentInvocationContract $build $installer
+$brokenBuild = $build.Replace('& $bootstrap @bootstrapArgs', '& $bootstrap $(if ($Silent) { ''-Silent'' })')
+if ($brokenBuild -eq $build) { throw 'The silent-invocation break probe did not modify the build script.' }
+$probeTurnedRed = $false
+try { Assert-SilentInvocationContract $brokenBuild $installer } catch { $probeTurnedRed = $true }
+if (-not $probeTurnedRed) { throw 'The silent-invocation break probe did not turn the contract red.' }
 Write-Output 'Packaging contract regression: PASS'

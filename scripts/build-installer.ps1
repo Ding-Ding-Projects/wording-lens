@@ -11,7 +11,8 @@ $bootstrapArgs = if ($Silent) { @{ Silent = $true } } else { @{} }
 & $bootstrap @bootstrapArgs
 if ($LASTEXITCODE -ne 0) { throw "Dependency bootstrap exited with $LASTEXITCODE." }
 $build = Join-Path $root 'scripts\build-project.ps1'
-& $build $(if ($Silent) { '-Silent' })
+$buildArgs = if ($Silent) { @{ Silent = $true } } else { @{} }
+& $build @buildArgs
 if ($LASTEXITCODE -ne 0) { throw "Application build exited with $LASTEXITCODE." }
 
 $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue

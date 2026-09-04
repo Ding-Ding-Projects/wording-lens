@@ -20,7 +20,8 @@ if (-not $Silent) {
     exit $elevated.ExitCode
   }
 }
-& $bootstrap $(if ($Silent) { '-Silent' })
+$bootstrapArgs = if ($Silent) { @{ Silent = $true } } else { @{} }
+& $bootstrap @bootstrapArgs
 if ($LASTEXITCODE -ne 0) { throw "Dependency bootstrap exited with $LASTEXITCODE." }
 $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $npm) { throw 'npm.cmd was not found after dependency bootstrap.' }
