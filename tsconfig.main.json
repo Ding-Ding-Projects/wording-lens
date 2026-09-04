@@ -7,9 +7,11 @@
     "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
+    "allowJs": true,
+    "checkJs": false,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["apps/desktop/electron/**/*.ts", "packages/core/src/**/*.ts"]
+  "include": ["apps/desktop/electron/**/*.ts", "packages/core/src/**/*.ts", "packages/desktop-services/src/**/*.d.ts", "packages/vocabulary/parse.mjs"]
 }

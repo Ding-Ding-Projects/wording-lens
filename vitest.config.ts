@@ -14,6 +14,7 @@ module.exports = defineConfig({
       "tests/runtime/**/*.test.ts",
       "tests/brand-assets/**/*.test.ts",
       "tests/downloads/**/*.test.ts",
+      "tests/desktop-services/**/*.test.ts",
     ],
     testTimeout: 30000,
     hookTimeout: 30000,
