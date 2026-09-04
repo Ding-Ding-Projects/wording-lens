@@ -1,0 +1,27 @@
+{
+  "generator": "scripts/generate-brand-assets.mjs",
+  "mark": "assets/wording-lens.svg",
+  "icon": "packaging/wording-lens.ico",
+  "socialPreview": "social-preview.png",
+  "servedSocialPreview": "apps/site/public/social-preview.png",
+  "dimensions": {
+    "socialPreview": [
+      1280,
+      640
+    ],
+    "iconSizes": [
+      16,
+      24,
+      32,
+      48,
+      64,
+      128,
+      256
+    ]
+  },
+  "sha256": {
+    "svg": "9af140a08ef4779e8e3b0ce9ba4804ac63d9bc36cfda3f78c2ce42e3d1216562",
+    "socialPreview": "dd7ac2debf3a6036e677c2ccdd0f9171189085eca3e9c609188c115933b2ff8d",
+    "ico": "5bcdb304dd94e80bc8930cd9fbabf47558b8e65cb912925c60afb2973b817d6b"
+  }
+}
