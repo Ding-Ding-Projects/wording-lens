@@ -16,5 +16,6 @@ if errorlevel 1 (
   echo [build] powershell.exe is required and was not found.
   exit /b 1
 )
+set "PSModulePath="
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\build-project.ps1" %SILENT_FLAG% %RUN_FLAG%
 exit /b %errorlevel%

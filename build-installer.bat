@@ -10,5 +10,6 @@ if errorlevel 1 (
   echo [installer] powershell.exe is required and was not found.
   exit /b 1
 )
+set "PSModulePath="
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\build-installer.ps1" %SILENT_FLAG%
 exit /b %errorlevel%

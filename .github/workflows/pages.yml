@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Bootstrap the exact Node toolchain, install site dependencies, and build
+        id: build
         shell: pwsh
         run: |
           & scripts/bootstrap-dependencies.ps1 -Silent
@@ -39,6 +40,57 @@ jobs:
           $publishedRoute = if ([string]::IsNullOrWhiteSpace($env:SITE_BASE_PATH)) { 'index.html' } else { (($env:SITE_BASE_PATH.Trim('/') -replace '/', [IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar + 'index.html') }
           $publishedIndex = Join-Path 'apps/site/dist/client' $publishedRoute
           if (-not (Test-Path -LiteralPath $publishedIndex)) { throw "The site build did not produce the base-path published document: $publishedIndex." }
+          $exportRoot = Split-Path -Parent $publishedIndex
+          $stage = Join-Path $env:RUNNER_TEMP 'wording-lens-pages'
+          if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Get-ChildItem -LiteralPath $exportRoot -Force | Copy-Item -Destination $stage -Recurse -Force
+          foreach ($name in @('_headers', '.assetsignore', '404', '404.html', 'vinext-client-entry-manifest.json')) {
+            $source = Join-Path 'apps/site/dist/client' $name
+            if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $stage $name) -Recurse -Force }
+          }
+          $stageIndex = Join-Path $stage 'index.html'
+          if (-not (Test-Path -LiteralPath $stageIndex)) { throw "Pages staging did not promote the published document to its artifact root: $stageIndex." }
+          $node = Get-Command node.exe -ErrorAction Stop
+          $server = Join-Path $env:RUNNER_TEMP 'wording-lens-pages-server.cjs'
+          @'
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const root = path.resolve(process.argv[2]);
+const prefix = process.argv[3];
+http.createServer((request, response) => {
+  const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
+  if (!pathname.startsWith(prefix)) { response.writeHead(404).end(); return; }
+  const relative = decodeURIComponent(pathname.slice(prefix.length)).replace(/^[/\\]+/, '') || 'index.html';
+  const candidate = path.resolve(root, relative);
+  if (candidate !== root && !candidate.startsWith(root + path.sep)) { response.writeHead(400).end(); return; }
+  fs.stat(candidate, (error, metadata) => {
+    if (error || !metadata.isFile()) { response.writeHead(404).end(); return; }
+    response.writeHead(200); fs.createReadStream(candidate).pipe(response);
+  });
+}).listen(4173, '127.0.0.1');
+'@ | Set-Content -LiteralPath $server -Encoding UTF8
+          $prefix = if ([string]::IsNullOrWhiteSpace($env:SITE_BASE_PATH)) { '/' } else { $env:SITE_BASE_PATH.TrimEnd('/') + '/' }
+          $serverProcess = Start-Process -FilePath $node.Source -ArgumentList @($server, $stage, $prefix) -PassThru -WindowStyle Hidden
+          try {
+            $homepage = $null
+            for ($attempt = 0; $attempt -lt 20 -and -not $homepage; $attempt++) {
+              try { $homepage = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:4173/wording-lens/' -TimeoutSec 2 } catch { Start-Sleep -Milliseconds 250 }
+            }
+            if (-not $homepage -or $homepage.StatusCode -ne 200) { throw 'The staged Pages homepage did not respond with HTTP 200.' }
+            $asset = [regex]::Match($homepage.Content, 'href="(/wording-lens/_next/static/css/[^"]+)"').Groups[1].Value
+            if (-not $asset) { throw 'The staged Pages homepage did not reference a base-path CSS asset.' }
+            $assetResponse = Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:4173" + $asset) -TimeoutSec 5
+            if ($assetResponse.StatusCode -ne 200 -or [string]::IsNullOrWhiteSpace($assetResponse.Content)) { throw "The staged Pages CSS asset did not respond with HTTP 200: $asset" }
+            $script = [regex]::Match($homepage.Content, 'src="(/wording-lens/_next/static/chunks/[^"]+)"').Groups[1].Value
+            if (-not $script) { throw 'The staged Pages homepage did not reference a base-path JavaScript asset.' }
+            $scriptResponse = Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:4173" + $script) -TimeoutSec 5
+            if ($scriptResponse.StatusCode -ne 200 -or [string]::IsNullOrWhiteSpace($scriptResponse.Content)) { throw "The staged Pages JavaScript asset did not respond with HTTP 200: $script" }
+          } finally {
+            if ($serverProcess -and -not $serverProcess.HasExited) { Stop-Process -Id $serverProcess.Id -Force }
+          }
+          "pages_stage=$stage" >> $env:GITHUB_OUTPUT
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -46,7 +98,7 @@ jobs:
       - name: Upload Pages artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/site/dist/client
+          path: ${{ steps.build.outputs.pages_stage }}
 
   deploy:
     needs: build
