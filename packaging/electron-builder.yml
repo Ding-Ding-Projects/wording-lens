@@ -1,0 +1,24 @@
+appId: com.dingdingprojects.wordinglens
+productName: Wording Lens
+copyright: Copyright Ding-Ding Projects
+directories:
+  output: dist/squirrel-windows
+  buildResources: packaging
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+extraMetadata:
+  main: dist-electron/main.js
+win:
+  target:
+    - squirrel
+  icon: packaging/wording-lens.ico
+  signAndEditExecutable: false
+  forceCodeSigning: false
+squirrelWindows:
+  artifactName: Wording-Lens-${version}-Setup.exe
+  msi: false
+  remoteReleases: null
+  useAppIdAsId: true
+  setupIcon: packaging/wording-lens.ico
