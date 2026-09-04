@@ -5,12 +5,12 @@
   "description": "A local-first operations cockpit for Windows.",
   "main": "dist-electron/apps/desktop/electron/main.js",
   "buildMetadata": {
-    "updatedAt": "2026-09-04T00:00:00.000Z",
-    "source": "foundation-shell"
+    "source": "generated-from-commit-metadata"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.main.json && vite build",
-    "test": "vitest run",
+    "generate:build-metadata": "node apps/desktop/electron/generate-build-metadata.mjs",
+    "build": "npm run generate:build-metadata && tsc -p tsconfig.main.json && vite build",
+    "test": "npm run generate:build-metadata && vitest run",
     "test:watch": "vitest",
     "start": "electron .",
     "dev": "vite"
@@ -20,18 +20,18 @@
     "apps/*"
   ],
   "dependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
-    "electron": "^31.7.7",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^22.5.4",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.4",
-    "vite": "^5.4.3",
-    "vitest": "^2.0.5",
-    "jsdom": "^25.0.0"
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.2.0",
+    "jsdom": "30.0.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
   }
 }

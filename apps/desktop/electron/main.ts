@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { BUILD_PROVENANCE } from "../../../packages/core/src/provenance";
+import { resolveRendererEntry } from "./paths";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -35,7 +36,7 @@ async function createWindow(): Promise<void> {
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) await mainWindow.loadURL(devUrl);
-  else await mainWindow.loadFile(join(__dirname, "../../../dist/renderer/index.html"));
+  else await mainWindow.loadFile(resolveRendererEntry(__dirname));
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 

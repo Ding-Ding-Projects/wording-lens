@@ -1,14 +1,9 @@
 import type { AppProvenance } from "./types";
+import { GENERATED_BUILD_METADATA } from "./generated-build-metadata";
 
 export const APP_ID = "wording-lens";
 export const SHIPPED_DISPLAY_NAME = "Wording Lens";
-export const BUILD_PROVENANCE: AppProvenance = Object.freeze({
-  appId: APP_ID,
-  displayName: SHIPPED_DISPLAY_NAME,
-  version: "0.1.0",
-  updatedAt: "2026-09-04T00:00:00.000Z",
-  source: "foundation-shell",
-});
+export const BUILD_PROVENANCE: AppProvenance = Object.freeze(GENERATED_BUILD_METADATA);
 
 export function isValidProvenance(value: unknown): value is AppProvenance {
   if (!value || typeof value !== "object") return false;
