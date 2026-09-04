@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import test from "node:test";
-import { createDefaultAdapterRegistry, detectSignature, MemoryQueueStore, ResumableQueue, validateOutput, validatePdfOperation } from "../../packages/converter/src/index";
-import { assessFit, attachmentDecision, createSnapshot, preflightHarness, refreshCatalog, validateHarnessProfile } from "../../packages/ollama/src/index";
+import { atomicWriteValidated, createDefaultAdapterRegistry, detectSignature, MemoryQueueStore, ResumableQueue, validateOutput, validatePdfOperation } from "../../packages/converter/src/index";
+import { assessFit, attachmentDecision, createOllamaApi, createSnapshot, preflightHarness, refreshCatalog, validateHarnessProfile } from "../../packages/ollama/src/index";
 
 test("converter catalog exposes all required categories and keeps unproven adapters disabled", () => {
   const registry = createDefaultAdapterRegistry();
@@ -22,6 +25,17 @@ test("byte signatures do not trust a misleading extension", () => {
 test("output validation rejects wrong and empty output", () => {
   assert.equal(validateOutput(new Uint8Array(), "pdf").valid, false);
   assert.equal(validateOutput(new TextEncoder().encode("not pdf"), "pdf").valid, false);
+});
+
+test("atomic output validation preserves an existing destination on rejection", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "wording-lens-converter-"));
+  const destination = join(directory, "result.pdf");
+  try {
+    await writeFile(destination, new TextEncoder().encode("prior valid output"));
+    const result = await atomicWriteValidated(destination, new TextEncoder().encode("not a pdf"), "pdf");
+    assert.equal(result.valid, false);
+    assert.equal(new TextDecoder().decode(await readFile(destination)), "prior valid output");
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("pdf operation validation covers page and merge boundaries", () => {
@@ -54,6 +68,19 @@ test("catalog refresh follows every page and retains a stale snapshot on failure
   assert.equal(stale.items.length, 2);
 });
 
+test("Ollama streams enforce pending bytes, total bytes, line count, and cancellation", async () => {
+  const responseFor = (payload: string): Response => new Response(new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(payload)); controller.close(); } }), { status: 200 });
+  const pendingApi = createOllamaApi("http://127.0.0.1:11434", async () => responseFor("123456789"), 1_000, 8, 100, 10);
+  await assert.rejects(pendingApi.stream("/api/chat", {}, () => undefined), /line exceeds/);
+  const totalApi = createOllamaApi("http://127.0.0.1:11434", async () => responseFor("x\nx\nx\nx\nx\nx\nx\nx\nx\nx\n"), 1_000, 8, 10, 100);
+  await assert.rejects(totalApi.stream("/api/chat", {}, () => undefined), /stream exceeds/);
+  const linesApi = createOllamaApi("http://127.0.0.1:11434", async () => responseFor("x\nx\nx\n"), 1_000, 8, 100, 2);
+  await assert.rejects(linesApi.stream("/api/chat", {}, () => undefined), /line limit/);
+  const controller = new AbortController(); controller.abort();
+  const cancelledApi = createOllamaApi("http://127.0.0.1:11434", async () => responseFor("x\n"), 1_000, 8, 100, 100);
+  await assert.rejects(cancelledApi.stream("/api/chat", {}, () => undefined, controller.signal), /cancelled/);
+});
+
 test("hardware fit is evidence-backed and conservative", () => {
   const unknown = assessFit({ name: "model", capabilities: [], source: "catalog" }, { capturedAt: new Date().toISOString() });
   assert.equal(unknown.verdict, "Unknown");
@@ -65,8 +92,11 @@ test("hardware fit is evidence-backed and conservative", () => {
 test("attachment capability gaps are visible and harness launch is allowlisted", () => {
   assert.equal(attachmentDecision([], { name: "photo.png", mime: "image/png", bytes: 3 }).allowed, false);
   const profile = { id: "local", label: "Local harness", executable: "C:\\Tools\\harness.exe", arguments: ["--model"], workingDirectory: "C:\\Tools", environment: { MODE: "local" }, requiredPorts: [11434], requiredFiles: [], bundled: true, allowlisted: true } as const;
-  assert.deepEqual(validateHarnessProfile(profile), []);
-  assert.equal(preflightHarness(profile, "model:latest").ok, true);
-  assert.ok(Object.keys(createSnapshot({ MODE: "local", API_TOKEN: "redacted" }).values).includes("MODE"));
-  assert.ok(!Object.keys(createSnapshot({ MODE: "local", API_TOKEN: "redacted" }).values).includes("API_TOKEN"));
+  assert.ok(validateHarnessProfile(profile).some((blocker) => blocker.includes("host-owned")));
+  const proof = { source: "host-registry", executable: profile.executable, arguments: profile.arguments, workingDirectoryPolicy: "exact", workingDirectory: profile.workingDirectory, bundled: true, proofId: "bundle-proof-1", sha256: "a".repeat(64) } as const;
+  assert.deepEqual(validateHarnessProfile(profile, proof), []);
+  assert.equal(preflightHarness(profile, "model:latest", proof).ok, true);
+  assert.ok(Object.keys(createSnapshot({ MODE: "local", API_TOKEN: "redacted", telemetry: "sensitive" }, ["MODE"]).values).includes("MODE"));
+  assert.ok(!Object.keys(createSnapshot({ MODE: "local", API_TOKEN: "redacted", telemetry: "sensitive" }, ["MODE"]).values).includes("telemetry"));
+  assert.ok(!Object.keys(createSnapshot({ MODE: "local", API_TOKEN: "redacted", telemetry: "sensitive" }, ["MODE"]).values).includes("API_TOKEN"));
 });

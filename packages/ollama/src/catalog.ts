@@ -1,4 +1,4 @@
-import type { CatalogPage, CatalogSnapshot, InstalledModel, ModelTag, OllamaApi } from "./types";
+import type { CatalogPage, CatalogSnapshot, InstalledModel, ModelTag } from "./types";
 
 const iso = (): string => new Date().toISOString();
 export type CatalogPageFetcher = (cursor?: string) => Promise<CatalogPage>;
@@ -27,17 +27,4 @@ export function reconcileInstalled(catalog: CatalogSnapshot, installed: readonly
     byName.set(item.name, { ...(old ?? item), ...item, source: old ? "catalog+installed" : "installed", capabilities: old?.capabilities ?? item.capabilities, running: running.has(item.name) });
   }
   return [...byName.values()];
-}
-
-/** Adapter for an official local endpoint or another explicitly verified paged source. */
-export async function catalogFromApi(api: OllamaApi): Promise<CatalogPageFetcher> {
-  return async (cursor?: string) => {
-    const path = cursor ? `/api/catalog?cursor=${encodeURIComponent(cursor)}` : "/api/catalog";
-    const response = await api.request(path);
-    if (!response.ok) throw new Error(`Catalog request failed with HTTP ${response.status}.`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > 8 * 1024 * 1024) throw new Error("Catalog response exceeds the bounded response limit.");
-    const body = JSON.parse(new TextDecoder().decode(bytes)) as { models?: ModelTag[]; next?: string; revision?: string };
-    return { items: body.models ?? [], next: body.next, revision: body.revision };
-  };
 }

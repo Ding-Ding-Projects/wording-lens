@@ -12,7 +12,10 @@ traversal, rejects redirects, applies a request deadline, and bounds declared
 response size. `health()`, `version()`, `installedTags()`, and `runningTags()`
 provide truthful missing, stopped, unhealthy, and healthy states.
 
-`refreshCatalog()` follows every page from an injected official catalog source,
+`refreshCatalog()` follows every page from an injected, separately verified
+official catalog source. It intentionally has no adapter for an undocumented
+`/api/catalog` endpoint. The host application owns source verification and
+supplies only the page fetcher after that verification,
 deduplicates by exact tag, records page count, revision, refresh time, and a
 completeness verdict, and retains the last verified snapshot when a refresh
 fails. `reconcileInstalled()` combines the complete catalog with installed and
@@ -42,14 +45,19 @@ but disabled with the exact required capability.
 
 ## Allowlisted harnesses and rollback
 
-`validateHarnessProfile()` rejects shell metacharacters, shell launchers,
-unallowlisted or unbundled executables, invalid ports, and secret-like
-environment keys. `preflightHarness()` returns an inspectable launch preview
+`validateHarnessProfile()` requires a host-owned proof record. That proof must
+match the executable, ordered arguments, working-directory policy, and bundled
+binary digest exactly. The profile's own `allowlisted` and `bundled` flags are
+not proof and cannot authorize a launch. Validation also rejects shell
+metacharacters, shell launchers, invalid ports, and secret-like environment
+keys. `preflightHarness()` returns an inspectable launch preview
 containing model, executable, arguments, working directory, environment-key
 names, ports, and required files. `launchWithRollback()` restores the supplied
 configuration snapshot after a launch exception or non-zero exit. Snapshots
-are redacted by `createSnapshot()` and never contain values whose names look
-like secrets.
+are created by `createSnapshot()` from an explicit host-owned allowlist of
+non-secret configuration keys and never contain values whose names look like
+secrets. A key not present in that allowlist is excluded even when its name
+looks harmless.
 
 ## Verification notes
 

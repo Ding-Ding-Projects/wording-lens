@@ -8,8 +8,9 @@ const localHost = (value: string): boolean => {
   } catch { return false; }
 };
 
-export function createOllamaApi(baseUrl = "http://127.0.0.1:11434", fetcher: typeof fetch = fetch, timeoutMs = 15_000, maxBytes = 8 * 1024 * 1024): OllamaApi {
+export function createOllamaApi(baseUrl = "http://127.0.0.1:11434", fetcher: typeof fetch = fetch, timeoutMs = 15_000, maxBytes = 8 * 1024 * 1024, maxStreamBytes = Math.min(Math.max(maxBytes, maxBytes * 16), 256 * 1024 * 1024), maxStreamLines = 100_000): OllamaApi {
   if (!localHost(baseUrl)) throw new Error("Ollama API must use bounded loopback HTTP.");
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(maxBytes) || maxBytes <= 0 || !Number.isFinite(maxStreamBytes) || maxStreamBytes <= 0 || !Number.isInteger(maxStreamLines) || maxStreamLines <= 0) throw new Error("Ollama API limits must be positive finite values.");
   const request = async (path: string, init: RequestInit = {}): Promise<Response> => {
     if (!path.startsWith("/") || path.includes("..")) throw new Error("Ollama API path is not allowlisted.");
     const controller = new AbortController();
@@ -31,15 +32,41 @@ export function createOllamaApi(baseUrl = "http://127.0.0.1:11434", fetcher: typ
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let pending = "";
+    let totalBytes = 0;
+    let lineCount = 0;
+    const abortReader = (): void => { void reader.cancel(); };
+    signal?.addEventListener("abort", abortReader, { once: true });
+    const encoder = new TextEncoder();
+    let pendingBytes = 0;
     try {
       while (true) {
-        const chunk = await reader.read(); if (chunk.done) break;
+        const chunk = await reader.read();
+        if (signal?.aborted) throw new Error("Ollama stream cancelled.");
+        if (chunk.done) break;
+        totalBytes += chunk.value.byteLength;
+        if (totalBytes > maxStreamBytes) throw new Error("Ollama stream exceeds the bounded byte limit.");
+        if (!chunk.value.includes(0x0a) && pendingBytes + chunk.value.byteLength > maxBytes) throw new Error("Ollama stream line exceeds the bounded byte limit.");
         pending += decoder.decode(chunk.value, { stream: true });
         const lines = pending.split("\n"); pending = lines.pop() ?? "";
-        for (const line of lines) if (line.trim()) onLine(line.slice(0, maxBytes));
+        pendingBytes = encoder.encode(pending).byteLength;
+        if (pendingBytes > maxBytes) throw new Error("Ollama stream line exceeds the bounded byte limit.");
+        for (const line of lines) if (line.trim()) {
+          lineCount += 1;
+          if (lineCount > maxStreamLines) throw new Error("Ollama stream exceeds the bounded line limit.");
+          if (encoder.encode(line).byteLength > maxBytes) throw new Error("Ollama stream line exceeds the bounded byte limit.");
+          onLine(line);
+        }
       }
-      if (pending.trim()) onLine(pending.slice(0, maxBytes));
-    } finally { await reader.cancel().catch(() => undefined); }
+      const tail = decoder.decode();
+      pending += tail;
+      pendingBytes = encoder.encode(pending).byteLength;
+      if (pendingBytes > maxBytes) throw new Error("Ollama stream line exceeds the bounded byte limit.");
+      if (pending.trim()) {
+        lineCount += 1;
+        if (lineCount > maxStreamLines) throw new Error("Ollama stream exceeds the bounded line limit.");
+        onLine(pending);
+      }
+    } finally { signal?.removeEventListener("abort", abortReader); await reader.cancel().catch(() => undefined); }
   };
   return { request, stream };
 }
