@@ -17,6 +17,7 @@ jobs:
     runs-on: windows-2025
     env:
       SITE_BASE_PATH: /wording-lens
+      NEXT_PUBLIC_SITE_URL: https://ding-ding-projects.github.io/wording-lens/
     steps:
       - name: Check out source
         uses: actions/checkout@v4

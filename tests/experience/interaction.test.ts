@@ -15,6 +15,7 @@ import {
   translateColor,
   tabAccessibility,
 } from "../../packages/experience/interaction";
+import { test } from "vitest";
 
 function expect(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -134,4 +135,6 @@ export function runInteractionTests(): void {
   expect(!oversized.analysis.valid && oversized.analysis.error?.includes("1000000"), "oversized samples are rejected before regex execution");
 }
 
-runInteractionTests();
+test("runs the complete framework-agnostic interaction contract", () => {
+  runInteractionTests();
+});
