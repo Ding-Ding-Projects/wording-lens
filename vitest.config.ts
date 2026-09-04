@@ -7,7 +7,15 @@ module.exports = defineConfig({
   resolve: { alias: { "@core": fileURLToPath(new URL("./packages/core/src", import.meta.url)) } },
   test: {
     environment: "jsdom",
-    include: ["packages/core/tests/**/*.test.ts", "apps/desktop/tests/**/*.test.ts", "tests/integration/**/*.test.ts", "tests/desktop-services/**/*.test.ts"],
+    include: [
+      "packages/core/tests/**/*.test.ts",
+      "apps/desktop/tests/**/*.test.ts",
+      "tests/integration/**/*.test.ts",
+      "tests/runtime/**/*.test.ts",
+      "tests/brand-assets/**/*.test.ts",
+      "tests/downloads/**/*.test.ts",
+      "tests/desktop-services/**/*.test.ts",
+    ],
     testTimeout: 30000,
     hookTimeout: 30000,
   },

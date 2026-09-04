@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Wording Lens Download Companion",
+  "version": "0.1.0",
+  "description": "Capture a user-invoked link download and hand it to the local Wording Lens application.",
+  "permissions": ["contextMenus", "storage", "nativeMessaging"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Wording Lens download companion",
+    "default_popup": "capture.html"
+  },
+  "options_ui": {
+    "page": "settings.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icon.svg",
+    "32": "icon.svg",
+    "48": "icon.svg",
+    "128": "icon.svg"
+  }
+}

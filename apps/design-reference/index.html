@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark light">
+    <title>Wording Lens Design Reference</title>
+    <style>
+      :root { color-scheme: dark; font-family: "Segoe UI", sans-serif; background: #10131a; color: #edf3f7; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 0; min-height: 100vh; background: #10131a; }
+      header { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 16px; align-items: end; padding: 16px 20px; border-bottom: 1px solid #3d4852; background: #1e252d; }
+      h1 { margin: 0 0 4px; font-size: 20px; }
+      p { margin: 0; color: #b9c5cc; font-size: 13px; }
+      form { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 8px; align-items: end; }
+      label { display: grid; gap: 4px; color: #b9c5cc; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+      select, input, button { min-height: 42px; border: 1px solid #52616d; border-radius: 10px; padding: 0 10px; background: #252f38; color: #edf3f7; font: inherit; }
+      select:focus-visible, input:focus-visible, button:focus-visible { outline: 3px solid #8dd9f4; outline-offset: 2px; }
+      button { cursor: pointer; font-weight: 700; }
+      button:hover { background: #34414b; }
+      main { height: calc(100vh - 104px); min-height: 0; padding: 12px; background: #10131a; }
+      .frame { width: 100%; height: 100%; overflow: auto; display: grid; place-items: start center; }
+      iframe { display: block; width: 1440px; height: 1000px; flex: 0 0 auto; border: 1px solid #3d4852; border-radius: 14px; background: #10131a; transform-origin: top left; }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+      @media (max-width: 760px) { header { grid-template-columns: 1fr; } form { grid-template-columns: repeat(2, minmax(130px, 1fr)); } main { height: calc(100vh - 194px); padding: 8px; } }
+      @media (prefers-reduced-motion: reduce) { iframe { scroll-behavior: auto; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Wording Lens design reference viewer</h1>
+        <p id="route-status">Reference source loading</p>
+      </div>
+      <form id="route-form" aria-label="Deterministic reference route">
+        <label>Screen<select id="screen"><option value="operations">Operations overview</option><option value="queue">Queue workspace</option><option value="adapters">Adapter workspace</option><option value="evidence">Evidence workspace</option><option value="settings">Settings workspace</option><option value="command-palette">Command palette</option><option value="new-operation">New operation</option><option value="evidence-detail">Evidence detail</option><option value="personal-wording-import">Personal wording import</option><option value="compact">Compact layout</option></select></label>
+        <label>Theme<select id="theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+        <label>Viewport<select id="viewport"><option value="1440x1000">1440 × 1000</option><option value="390x844">390 × 844</option></select></label>
+        <label>Scale<select id="scale"><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label>
+      </form>
+    </header>
+    <main>
+      <div class="frame"><iframe id="reference-frame" title="Checked-in Wording Lens design reference" src="../../design/wording-lens-operations-cockpit.html"></iframe></div>
+    </main>
+    <script>
+      (() => {
+        const frame = document.getElementById("reference-frame");
+        const form = document.getElementById("route-form");
+        const status = document.getElementById("route-status");
+        const screens = new Set(["operations", "queue", "adapters", "evidence", "settings", "command-palette", "new-operation", "evidence-detail", "personal-wording-import", "compact"]);
+        const params = new URLSearchParams(window.location.search);
+        const state = {
+          screen: screens.has(params.get("screen")) ? params.get("screen") : "operations",
+          theme: params.get("theme") === "light" ? "light" : "dark",
+          viewport: params.get("viewport") === "390x844" ? "390x844" : "1440x1000",
+          scale: ["1", "1.25", "1.5", "2"].includes(params.get("scale")) ? params.get("scale") : "1",
+        };
+        ["screen", "theme", "viewport", "scale"].forEach((key) => { document.getElementById(key).value = state[key]; });
+        function routeText() { return `screen=${state.screen} · theme=${state.theme} · viewport=${state.viewport} · scale=${state.scale}`; }
+        function applyFrame() {
+          const [width, height] = state.viewport.split("x").map(Number);
+          frame.style.width = `${width}px`;
+          frame.style.height = `${height}px`;
+          frame.style.transform = `scale(${1 / Number(state.scale)})`;
+          frame.parentElement.style.width = `${width / Number(state.scale)}px`;
+          frame.parentElement.style.height = `${height / Number(state.scale)}px`;
+          frame.src = `../../design/wording-lens-operations-cockpit.html#screen=${encodeURIComponent(state.screen)}&theme=${state.theme}&viewport=${state.viewport}&scale=${state.scale}`;
+          status.textContent = `Direct source: design/wording-lens-operations-cockpit.html · ${routeText()}`;
+        }
+        form.addEventListener("change", () => {
+          state.screen = document.getElementById("screen").value;
+          state.theme = document.getElementById("theme").value;
+          state.viewport = document.getElementById("viewport").value;
+          state.scale = document.getElementById("scale").value;
+          const next = new URL(window.location.href);
+          Object.entries(state).forEach(([key, value]) => next.searchParams.set(key, value));
+          window.history.replaceState({}, "", next);
+          applyFrame();
+        });
+        frame.addEventListener("load", () => {
+          try {
+            const documentRoot = frame.contentDocument.documentElement;
+            documentRoot.dataset.theme = state.theme;
+            const panel = documentRoot.querySelector(`[data-panel="${CSS.escape(state.screen)}"]`);
+            if (panel) { documentRoot.querySelectorAll("[data-panel]").forEach((item) => { item.hidden = item !== panel; }); panel.hidden = false; }
+            const dialogMap = { "command-palette": "command-dialog", "new-operation": "operation-dialog", "evidence-detail": "evidence-dialog" };
+            const dialogId = dialogMap[state.screen];
+            if (dialogId) documentRoot.getElementById(dialogId)?.showModal();
+            documentRoot.querySelector(`[data-import-zone]`)?.scrollIntoView({ block: "center" });
+          } catch { status.textContent = `Direct source loaded · ${routeText()}`; }
+        });
+        applyFrame();
+      })();
+    </script>
+  </body>
+</html>

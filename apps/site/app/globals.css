@@ -482,6 +482,28 @@ input[type='color'] {
   padding: 0;
   overflow: auto;
 }
+.table-card table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: collapse;
+}
+.table-card th,
+.table-card td {
+  min-height: 64px;
+  border-top: 1px solid var(--outline);
+  padding: 16px 20px;
+  text-align: left;
+}
+.table-card thead th {
+  border-top: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.table-card input {
+  width: 20px;
+  height: 20px;
+}
 .table-row {
   display: grid;
   grid-template-columns: 70px minmax(220px, 2fr) minmax(120px, 1fr) minmax(
@@ -779,6 +801,12 @@ input[type='color'] {
   background: var(--overlay);
   padding: 10px;
   box-shadow: 0 34px 100px rgb(0 0 0 / 0.5);
+  margin: 12vh auto 0;
+  color: var(--foreground);
+}
+.command-palette::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(7px);
 }
 .palette-search {
   display: flex;
@@ -808,6 +836,92 @@ input[type='color'] {
 }
 .command-palette > button:hover {
   background: var(--surface-high);
+}
+.command-palette > button span {
+  display: grid;
+}
+.command-palette > button small {
+  color: var(--muted);
+  font-weight: 500;
+}
+.site-toast {
+  position: fixed;
+  z-index: 30;
+  right: 20px;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(460px, calc(100vw - 32px));
+  border: 1px solid var(--outline);
+  border-radius: 18px;
+  background: var(--overlay);
+  padding: 12px 14px 12px 18px;
+  box-shadow: var(--shadow);
+}
+.site-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  width: min(330px, calc(100vw - 16px));
+  max-height: min(520px, calc(100vh - 80px));
+  overflow: auto;
+  border: 1px solid var(--outline);
+  border-radius: 18px;
+  background: var(--overlay);
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+.site-context-menu > button[role='menuitem'] {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--foreground);
+  padding: 0 12px;
+  text-align: left;
+}
+.site-context-menu > button[role='menuitem']:hover,
+.site-context-menu > button[role='menuitem']:focus-visible {
+  background: var(--surface-high);
+}
+.site-context-menu .regex-panel {
+  grid-template-columns: 1fr;
+  margin: 0;
+}
+.context-editor {
+  display: grid;
+  gap: 12px;
+}
+.context-editor label {
+  display: grid;
+  gap: 7px;
+}
+[data-local-lock='true'] {
+  cursor: not-allowed !important;
+  filter: saturate(0.45);
+}
+.school-panel {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+html[data-density='compact'] .surface-card {
+  padding: 14px;
+}
+html[data-density='spacious'] .surface-card {
+  padding: 28px;
+}
+html[data-low-stimulation='true'] *,
+html[data-low-stimulation='true'] *::before,
+html[data-low-stimulation='true'] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+html[data-focus-mode='true'] .adapter-card:not(:focus-within),
+html[data-focus-mode='true'] .feature-card:not(:focus-within) {
+  opacity: 0.62;
 }
 
 @media (max-width: 900px) {
@@ -884,8 +998,7 @@ input[type='color'] {
     overflow-x: auto;
   }
   .rail-logo,
-  .rail-spacer,
-  .tab-rail button:last-child {
+  .rail-spacer {
     display: none;
   }
   .tab-rail button {

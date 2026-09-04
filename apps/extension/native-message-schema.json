@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wording-lens.example/schema/native-message-v1.json",
+  "title": "Wording Lens native download messages",
+  "type": "object",
+  "oneOf": [
+    {
+      "required": ["type", "version", "request"],
+      "properties": {
+        "type": { "const": "download.start" },
+        "version": { "const": 1 },
+        "request": { "$ref": "#/$defs/startRequest" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "required": ["type", "state"],
+      "properties": {
+        "type": { "const": "download.native-event" },
+        "state": {
+          "type": "object",
+          "required": ["schemaVersion", "captureId", "state", "bytesReceived", "updatedAt"],
+          "properties": {
+            "schemaVersion": { "const": 1 },
+            "captureId": { "$ref": "#/$defs/captureId" },
+            "state": { "enum": ["downloading", "complete", "cancelled", "failed"] },
+            "bytesReceived": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,19})$" },
+            "bytesTotal": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,19})$" },
+            "rateBytesPerSecond": { "type": "integer", "minimum": 0 },
+            "etaSeconds": { "type": "integer", "minimum": 0 },
+            "updatedAt": { "type": "string", "format": "date-time" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "required": ["type", "version", "captureId"],
+      "properties": {
+        "type": { "enum": ["download.pause", "download.resume", "download.cancel"] },
+        "version": { "const": 1 },
+        "captureId": { "$ref": "#/$defs/captureId" }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "captureId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$" },
+    "startRequest": {
+      "type": "object",
+      "required": ["schemaVersion", "captureId", "fileName", "sourceUrl", "destination", "requestedAt", "userInvoked", "alwaysOnTop"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "captureId": { "$ref": "#/$defs/captureId" },
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "sourceUrl": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "destination": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "requestedAt": { "type": "string", "format": "date-time" },
+        "userInvoked": { "const": true },
+        "alwaysOnTop": { "const": true }
+      },
+      "additionalProperties": false
+    }
+  }
+}

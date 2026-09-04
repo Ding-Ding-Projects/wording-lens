@@ -6,10 +6,12 @@
     "node": ">=22.13.0 <23"
   },
   "scripts": {
+    "predev": "node scripts/check-node.mjs && node scripts/generate-provenance.mjs",
     "dev": "vinext dev",
-    "prebuild": "node scripts/check-node.mjs",
+    "prebuild": "node scripts/check-node.mjs && node scripts/generate-provenance.mjs",
     "build": "vinext build",
-    "test": "node --experimental-strip-types --experimental-transform-types --test tests/local-private.test.ts",
+    "test": "node --experimental-strip-types --experimental-transform-types --test \"tests/*.test.ts\"",
+    "pretypecheck": "node scripts/generate-provenance.mjs",
     "typecheck": "tsc --noEmit",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
