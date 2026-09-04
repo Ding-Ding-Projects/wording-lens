@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Download companion settings</title><link rel="stylesheet" href="surface.css"></head>
+<body><main>
+  <header class="topbar"><div class="mark" aria-hidden="true">WL</div><div><h1>Download companion settings</h1><p>Only an explicit link context-menu action creates a capture request.</p></div></header>
+  <section class="card grid"><h2>Local application bridge</h2><p>The companion uses one fixed native-message host name and an allowlisted versioned schema. No page history, credentials, or background browsing access is collected.</p><button type="button" data-check>Check local bridge</button><div data-status class="notice" role="status">Bridge status has not been checked.</div></section>
+  <section class="card grid"><h2>Surface search</h2><div class="search"><label for="surface-search">Search settings<input id="surface-search" data-search type="search" placeholder="Search labels and explanations"></label><button type="button" data-regex-toggle aria-expanded="false">.* Regex</button></div><p data-search-result role="status">Plain text search is ready.</p><div class="regex-panel hidden" data-regex-panel><label for="regex-pattern">Pattern<input id="regex-pattern" data-regex-pattern></label><label for="regex-flags">Flags<input id="regex-flags" data-regex-flags value="giu"></label><label for="regex-sample">Sample text<textarea id="regex-sample" data-regex-sample></textarea></label><p data-regex-result role="status">Regex is opt-in and evaluated locally.</p></div></section>
+</main><script src="surface.js"></script><script src="settings.js"></script></body></html>

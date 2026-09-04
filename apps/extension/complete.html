@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Download complete</title><link rel="stylesheet" href="surface.css"></head>
+<body><main>
+  <header class="topbar"><div class="mark" aria-hidden="true">WL</div><div><h1>Download complete</h1><p>The local application reported the terminal result.</p></div></header>
+  <section class="card grid"><h2>Completion</h2><div data-status class="notice" role="status">Loading the terminal state.</div><dl class="facts"><dt>File</dt><dd><code data-file>Loading</code></dd><dt>Result</dt><dd data-result>Loading</dd><dt>Privacy</dt><dd>Public exports omit source URLs, destination paths, and file names.</dd></dl><div class="actions"><button type="button" data-dismiss>Dismiss</button><a class="button" href="capture.html">Start another</a></div></section>
+  <section class="card"><div class="search"><label for="surface-search">Search this surface<input id="surface-search" data-search type="search" placeholder="Search completion details"></label><button type="button" data-regex-toggle aria-expanded="false">.* Regex</button></div><p data-search-result role="status">Plain text search is ready.</p><div class="regex-panel hidden" data-regex-panel><label for="regex-pattern">Pattern<input id="regex-pattern" data-regex-pattern></label><label for="regex-flags">Flags<input id="regex-flags" data-regex-flags value="giu"></label><label for="regex-sample">Sample text<textarea id="regex-sample" data-regex-sample></textarea></label><p data-regex-result role="status">Regex is opt-in and evaluated locally.</p></div></section>
+</main><script src="surface.js"></script><script src="complete.js"></script></body></html>
