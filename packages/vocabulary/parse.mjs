@@ -187,8 +187,8 @@ function validateShape(value, limits) {
       throw new TypeError("Entry key is unsafe or outside its bounds");
     }
     const replacement = value.entries[key];
-    if (typeof replacement !== "string" || replacement.length === 0 || replacement.length > limits.maxValueLength) {
-      throw new TypeError("Entry replacement must be a bounded non-empty string");
+    if (typeof replacement !== "string" || replacement.length > limits.maxValueLength) {
+      throw new TypeError("Entry replacement must be a bounded string");
     }
     if (CONTROL_CHARACTER.test(replacement)) throw new TypeError("Entry replacement contains a control character");
     entries[key] = replacement;

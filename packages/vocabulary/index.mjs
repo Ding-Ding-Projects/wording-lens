@@ -2,8 +2,8 @@ import { LIMITS, PRIVATE_SINKS, SINK_BOUNDARIES } from "./constants.mjs";
 import { parseVocabularyPayload, validateVocabularyPayload } from "./parse.mjs";
 
 function assertIndexEntry(key, value) {
-  if (typeof key !== "string" || key.length === 0 || typeof value !== "string" || value.length === 0) {
-    throw new TypeError("Index entries must have non-empty text");
+  if (typeof key !== "string" || key.length === 0 || typeof value !== "string") {
+    throw new TypeError("Index entries must have string text");
   }
 }
 

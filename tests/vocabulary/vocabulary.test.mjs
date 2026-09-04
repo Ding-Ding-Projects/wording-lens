@@ -32,11 +32,44 @@ test("rejects unknown versions, fields, unsafe keys, controls, and malformed inp
 });
 
 test("enforces byte, entry, depth, key, and replacement bounds", () => {
-  assert.throws(() => parseVocabularyPayload(payload({ a: "x" }), { limits: { maxBytes: 5 } }), /byte limit/);
-  assert.throws(() => parseVocabularyPayload(payload(Object.fromEntries(Array.from({ length: 3 }, (_, i) => [`k${i}`, "v"]))), { limits: { maxEntries: 2 } }), /Entry count/);
-  assert.throws(() => parseVocabularyPayload('{"schemaVersion":1,"entries":{"a":{"b":{"c":{"d":"x"}}}}}', { limits: { maxNestingDepth: 3 } }), /nesting depth/);
-  assert.throws(() => parseVocabularyPayload(payload({ abc: "x" }), { limits: { maxKeyLength: 2 } }), /maximum length/);
-  assert.throws(() => parseVocabularyPayload(payload({ a: "xyz" }), { limits: { maxValueLength: 2 } }), /maximum length/);
+  const encoder = new TextEncoder();
+  const exactPayload = (targetBytes) => {
+    const entries = Object.create(null);
+    for (let index = 0; index < 262; index += 1) entries[`k${index}`] = "x".repeat(987);
+    entries.k262 = "";
+    const base = encoder.encode(payload(entries));
+    const finalLength = targetBytes - base.byteLength;
+    assert.ok(finalLength >= 0 && finalLength <= 1000);
+    entries.k262 = "x".repeat(finalLength);
+    const result = encoder.encode(payload(entries));
+    assert.equal(result.byteLength, targetBytes);
+    return result;
+  };
+  const atByteLimit = exactPayload(256 * 1024);
+  assert.equal(parseVocabularyPayload(atByteLimit).schemaVersion, 1);
+  const oneByteOver = new Uint8Array(atByteLimit.byteLength + 1);
+  oneByteOver.set(atByteLimit);
+  oneByteOver[oneByteOver.length - 1] = 0x20;
+  assert.throws(() => parseVocabularyPayload(oneByteOver), /byte limit/);
+
+  const atEntryLimit = Object.fromEntries(Array.from({ length: 4096 }, (_, index) => [`k${index}`, ""]));
+  assert.equal(Object.keys(parseVocabularyPayload(payload(atEntryLimit)).entries).length, 4096);
+  const overEntryLimit = { ...atEntryLimit, k4096: "" };
+  assert.throws(() => parseVocabularyPayload(payload(overEntryLimit)), /Entry count/);
+
+  assert.doesNotThrow(() => parseVocabularyPayload('{"schemaVersion":1,"entries":{"a":"x"}}'));
+  assert.throws(() => parseVocabularyPayload('{"schemaVersion":1,"entries":{"a":{"b":"x"}}}'), /nesting depth/);
+
+  assert.doesNotThrow(() => parseVocabularyPayload(payload({ ["k".repeat(160)]: "" })));
+  assert.throws(() => parseVocabularyPayload(payload({ ["k".repeat(161)]: "" })), /maximum length/);
+  assert.doesNotThrow(() => parseVocabularyPayload(payload({ a: "x".repeat(1000) })));
+  assert.throws(() => parseVocabularyPayload(payload({ a: "x".repeat(1001) })), /maximum length/);
+});
+
+test("accepts an empty replacement and retains it in the local index", () => {
+  const index = createAliasIndex(parseVocabularyPayload(payload({ alpha: "" })));
+  assert.equal(index.lookup("alpha"), "");
+  assert.equal(renderProtectedSpans("alpha", index), "");
 });
 
 test("indexes longest keys first and protects exact spans", () => {

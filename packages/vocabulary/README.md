@@ -8,10 +8,11 @@ in this package.
 ## Contract
 
 The supported payload is schema version `1` with exactly `schemaVersion` and
-`entries` at the root. The parser reads UTF-8 bytes, enforces a 64 KiB payload
-limit, allows at most 512 entries, bounds keys and replacements at 256
-characters, rejects duplicate JSON keys at every object depth, rejects unsafe
-object keys, rejects control characters, rejects unknown fields, and rejects
+`entries` at the root. The parser reads UTF-8 bytes, enforces a 256 KiB payload
+limit, allows at most 4,096 entries, bounds keys at 160 characters and
+replacements at 1,000 characters, and permits empty replacement strings.
+Objects may be at most two levels deep. It rejects duplicate JSON keys at every
+object depth, unsafe object keys, control characters, unknown fields, and
 unsupported versions. Validation completes before a controller changes state.
 
 The parser is duplicate-aware because ordinary object parsing has already lost a

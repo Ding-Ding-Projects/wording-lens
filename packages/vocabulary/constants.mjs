@@ -4,11 +4,11 @@ export const SCHEMA_VERSION = 1;
 // They protect parsing and rendering without putting a total-file ceiling on the
 // application that owns the control.
 export const LIMITS = Object.freeze({
-  maxBytes: 64 * 1024,
-  maxEntries: 512,
-  maxKeyLength: 256,
-  maxValueLength: 256,
-  maxNestingDepth: 4,
+  maxBytes: 256 * 1024,
+  maxEntries: 4096,
+  maxKeyLength: 160,
+  maxValueLength: 1000,
+  maxNestingDepth: 2,
 });
 
 export const UNSAFE_KEYS = new Set([

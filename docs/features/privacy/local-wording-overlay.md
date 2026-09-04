@@ -8,11 +8,12 @@ selection restores shipped wording immediately.
 ## Schema and bounds
 
 Version `1` has exactly two root properties: `schemaVersion` and `entries`.
-The complete UTF-8 payload is bounded at 64 KiB, the entry count at 512, and
-each key and replacement at 256 characters. Duplicate JSON keys, unsupported
-versions, unknown fields, unsafe object keys, malformed UTF-8, control
-characters, arrays at the root or entries, and non-string replacements are
-refused before state changes.
+The complete UTF-8 payload is bounded at 256 KiB, the entry count at 4,096,
+each key at 160 characters, and each replacement at 1,000 characters. Empty
+replacement strings are valid. Objects may be at most two levels deep.
+Duplicate JSON keys, unsupported versions, unknown fields, unsafe object keys,
+malformed UTF-8, control characters, arrays at the root or entries, and
+non-string replacements are refused before state changes.
 
 ## Rendering boundary
 
