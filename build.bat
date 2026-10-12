@@ -16,5 +16,7 @@ if errorlevel 1 (
   echo [build] powershell.exe is required and was not found.
   exit /b 1
 )
+rem Let Windows PowerShell construct its own module paths after a pwsh/cmd hop.
+set "PSModulePath="
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\build-project.ps1" %SILENT_FLAG% %RUN_FLAG%
 exit /b %errorlevel%
