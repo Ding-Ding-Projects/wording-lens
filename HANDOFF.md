@@ -1,5 +1,52 @@
 # Handoff
 
+## 2026-10-12 bounded Pages publication repair
+
+- The Pages workflow now bootstraps only the pinned Node.js toolchain, builds
+  the site for `/wording-lens`, and stages its actual base-path export at
+  `apps/site/dist/pages`. The upload consumes that staging directory.
+- Staging promotes the homepage, assets, public files, and RSC payload to the
+  artifact root, retains the generated 404 documents, and adds `.nojekyll`.
+  It rejects missing or empty local resources, invalid base paths, overlapping
+  staging directories, and symbolic links. The favicon metadata uses the same
+  base path as the site.
+- Separately from the Pages layout repair, the shared Node.js pin is 22.22.2:
+  locked `jsdom` 30.0.1 requires `^22.22.2 || ^24.15.0 || >=26.0.0`, excluding
+  the former 22.14.0 pin. Its Windows archive digest was checked against the
+  official release checksum. Bootstrap hashing uses .NET SHA-256 directly.
+  Raw job logs now confirm `Get-FileHash` was unavailable in historical
+  release run 33910964111 and current-main release run 33916759742, both
+  failing dependency bootstrap. Current-main Pages run 33916759691 completed
+  its static build, then failed its incorrect root `index.html` check; it also
+  recorded the incompatible Node engine warnings. Windows execution of the
+  repaired hash path remains pending. `-ToolchainOnly` preserves the full
+  desktop bootstrap path.
+  `tests/build/bootstrap-hash.test.ps1` covers a known digest, the exact
+  mismatch guard, and exclusive file reopening after both paths; it has not
+  run in this environment.
+- Local site verification on Node.js 22.22.2: 20 tests passed, TypeScript passed,
+  changed-file lint passed, and the base-path build and staging passed with
+  26 validated HTML `src`/`href` resource references. Full site lint reports 19 identical
+  preexisting errors on the candidate and a clean `f42ffa8` baseline.
+- The desktop source build and renderer type check passed. Historical clean
+  `f42ffa8` verification reproduced two stale test expectations: a hardcoded
+  Windows editor-preview path on Linux and a quoted `settings` token search in
+  the wrong source file. That baseline passed 94 of 96 Vitest checks.
+- The separate test-only repair uses a platform-native temporary path and
+  checks the actual 13-tab inventory plus a real Settings interaction. Current
+  repaired-tree local verification passes the complete root command: 96/96
+  Vitest, 12/12 Node privacy/completeness, and 8/8 operations checks, totaling
+  116 checks, plus renderer type checking. Removing the Settings tab or panel,
+  or the editor NUL guard, deliberately turns the improved checks red.
+- No new Windows bootstrap run, installer, hosted deployment, live-site read,
+  packaged runtime capture, or release is claimed by this local repair.
+  Verify the exact published commit and served Pages homepage, assets,
+  favicon, preview image, and provenance before changing deployment status.
+  Issue #1 remains open for the complete-release acceptance checklist.
+- Current private-operation epoch, encrypted-cache validation, and private
+  element-export protections are preserved. The older `task/resume-build`
+  branch was not merged because its site tree predates these protections.
+
 ## 2026-09-04 resumed work, paused again at owner request
 
 - `main` now includes the retained desktop bridge wiring, private-operation race

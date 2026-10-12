@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$Silent)
+param([switch]$Silent, [switch]$ToolchainOnly)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -12,6 +12,15 @@ if ($manifest.schemaVersion -ne 1 -or $manifest.platform -ne 'windows-x64') {
 
 function Write-Phase([string]$Message) {
   if (-not $Silent) { Write-Host "[bootstrap] $Message" }
+}
+
+function Get-Sha256([Parameter(Mandatory=$true)][string]$LiteralPath) {
+  $stream = [IO.File]::OpenRead($LiteralPath)
+  try {
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $sha256.Dispose() }
+  } finally { $stream.Dispose() }
 }
 
 function Get-LocalToolRoot {
@@ -40,7 +49,7 @@ if (-not (Test-Path -LiteralPath $nodeExe) -or -not (Test-Path -LiteralPath $npm
   $stage = Join-Path ([IO.Path]::GetTempPath()) ("wording-lens-node-{0}" -f [guid]::NewGuid().ToString('N'))
   try {
     Invoke-WebRequest -UseBasicParsing -Uri $nodeSpec.source -OutFile $download
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $download).Hash.ToLowerInvariant()
+    $actual = Get-Sha256 -LiteralPath $download
     if ($actual -ne $nodeSpec.sha256.ToLowerInvariant()) {
       throw "SHA-256 mismatch for $($nodeSpec.source): expected $($nodeSpec.sha256), got $actual."
     }
@@ -60,6 +69,7 @@ if (-not (Test-Path -LiteralPath $nodeExe) -or -not (Test-Path -LiteralPath $npm
 $env:PATH = "$nodeRoot;$nodeRoot;$env:PATH"
 Write-Phase "Using Node.js $(& $nodeExe --version) from $nodeRoot."
 Write-Phase "Using npm $(& $npmCmd --version)."
+if ($ToolchainOnly) { return }
 
 $packageJson = Join-Path $root 'package.json'
 if (-not (Test-Path -LiteralPath $packageJson)) {

@@ -7,6 +7,8 @@ package or release.
 ## Articles
 
 - [Build, package, and publish](build-package-and-publish.md)
+- [Pages publication](pages-publication.md): base-path export staging and
+  independent deployment acceptance.
 
 ## Release status
 

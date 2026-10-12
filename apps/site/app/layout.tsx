@@ -5,6 +5,7 @@ const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??
   'https://wording-lens-status-workbench.gerktongdew.chatgpt.site/';
 const previewUrl = new URL('social-preview.png', siteUrl).toString();
+const basePath = process.env.SITE_BASE_PATH ?? '';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
   description:
     'A local-first Windows operations cockpit with a private, user-supplied wording layer.',
   alternates: { canonical: siteUrl },
-  icons: { icon: '/favicon.svg' },
+  icons: { icon: `${basePath}/favicon.svg` },
   openGraph: {
     title: 'Wording Lens',
     description:

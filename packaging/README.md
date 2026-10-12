@@ -40,7 +40,8 @@ Squirrel.Windows files, captures completion after upload, updates the notes by
 release ID, publishes exactly once, and verifies the final non-draft release.
 
 `.github/workflows/pages.yml` builds the site with `SITE_BASE_PATH=/wording-lens`
-and publishes `apps/site/dist/client` through GitHub Pages. It contains no test
+and stages the base-path export at `apps/site/dist/pages` before publishing
+that artifact through GitHub Pages. It contains no test
 or lint job.
 
 The workflow intentionally does not run tests, lint, type checks, coverage,

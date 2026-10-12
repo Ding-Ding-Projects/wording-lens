@@ -10,6 +10,7 @@
     "dev": "vinext dev",
     "prebuild": "node scripts/check-node.mjs && node scripts/generate-provenance.mjs",
     "build": "vinext build",
+    "stage:pages": "node scripts/stage-pages.mjs",
     "test": "node --experimental-strip-types --experimental-transform-types --test \"tests/*.test.ts\"",
     "pretypecheck": "node scripts/generate-provenance.mjs",
     "typecheck": "tsc --noEmit",

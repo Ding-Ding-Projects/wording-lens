@@ -35,8 +35,13 @@ Run the complete local check set with:
 npm test
 ```
 
-The current aggregate contains 92 passing checks. This is local evidence only,
-not packaged-application or release evidence.
+The foundation aggregate recorded 92 passing checks. Current local results and
+known baseline failures are recorded in [HANDOFF.md](HANDOFF.md). Local checks
+are separate from packaged-application and release evidence.
+
+For the documentation site's project-Pages build and staging commands, see
+[Pages publication](docs/features/release/pages-publication.md). Publication
+remains pending until the exact deployment and served assets are verified.
 
 The installer path is:
 
