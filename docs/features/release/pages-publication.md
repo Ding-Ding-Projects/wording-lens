@@ -15,9 +15,11 @@ range. The pin correction is separate from the Pages output-layout defect.
 The Windows archive SHA-256 is
 `7c93e9d92bf68c07182b471aa187e35ee6cd08ef0f24ab060dfff605fcc1c57c`, checked
 against [Node.js's official checksums](https://nodejs.org/dist/v22.22.2/SHASUMS256.txt).
-On Windows, the Pages workflow runs
-`scripts/bootstrap-dependencies.ps1 -Silent -ToolchainOnly`; the ordinary
-desktop bootstrap continues to install the application's full dependencies.
+The separately prepared Pages workflow update will run
+`scripts/bootstrap-dependencies.ps1 -Silent -ToolchainOnly` on Windows; the
+ordinary desktop bootstrap continues to install the application's full
+dependencies. The source-preservation branch leaves existing workflows
+unchanged until that update is reviewed and published.
 
 From `apps/site`, with the environment above set, run:
 
@@ -29,8 +31,8 @@ npm run build
 npm run stage:pages
 ```
 
-Local tests and type checks stay outside GitHub Actions. The workflow builds
-and stages the static artifact, then uploads `apps/site/dist/pages`.
+Local tests and type checks stay outside GitHub Actions. The pending workflow
+update builds and stages the static artifact, then uploads `apps/site/dist/pages`.
 
 `scripts/stage-pages.mjs` promotes the configured base-path directory to the
 artifact root without rewriting its published URLs. It keeps JavaScript, CSS,

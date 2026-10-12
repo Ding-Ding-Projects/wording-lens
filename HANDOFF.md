@@ -2,9 +2,11 @@
 
 ## 2026-10-12 bounded Pages publication repair
 
-- The Pages workflow now bootstraps only the pinned Node.js toolchain, builds
-  the site for `/wording-lens`, and stages its actual base-path export at
-  `apps/site/dist/pages`. The upload consumes that staging directory.
+- The source-preservation branch keeps both existing main-only workflows
+  unchanged. Its source repairs can be saved without triggering those release
+  or deployment jobs. The separate Pages workflow patch remains pending:
+  it selects toolchain-only bootstrap, builds for `/wording-lens`, stages the
+  actual base-path export, and uploads `apps/site/dist/pages`.
 - Staging promotes the homepage, assets, public files, and RSC payload to the
   artifact root, retains the generated 404 documents, and adds `.nojekyll`.
   It rejects missing or empty local resources, invalid base paths, overlapping
@@ -33,11 +35,33 @@
   Windows editor-preview path on Linux and a quoted `settings` token search in
   the wrong source file. That baseline passed 94 of 96 Vitest checks.
 - The separate test-only repair uses a platform-native temporary path and
-  checks the actual 13-tab inventory plus a real Settings interaction. Current
-  repaired-tree local verification passes the complete root command: 96/96
+  checks the actual 13-tab inventory plus a real Settings interaction. The
+  source/test verification before the wrapper regressions passed 96/96
   Vitest, 12/12 Node privacy/completeness, and 8/8 operations checks, totaling
   116 checks, plus renderer type checking. Removing the Settings tab or panel,
   or the editor NUL guard, deliberately turns the improved checks red.
+- The download, build, and installer batch wrappers now clear `PSModulePath`
+  only inside their existing `setlocal`, immediately before their unchanged
+  Windows PowerShell invocation. Their PowerShell 7-to-batch-to-Windows
+  PowerShell launch chain matches Microsoft's documented module-discovery
+  failure; this remains an inferred cause because the historical jobs did not
+  capture child module paths. The later installer hash sites share that host
+  boundary, while direct PowerShell 7 collection and verification do not.
+  See [Microsoft's module-path documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_psmodulepath?view=powershell-7.6).
+  Seven local static checks protect reset order, process scope, unchanged
+  invocation, and exit forwarding. Removing the actual download-wrapper reset
+  turned its check red before restoration. Current source/test/wrapper
+  verification passes 103/103 Vitest, 12/12 privacy, and 8/8 operations checks,
+  totaling 123 checks, plus renderer type checking. Native Windows execution
+  and the polluted-versus-cleared module-path experiment remain pending;
+  these checks do not establish installer or release readiness.
+- A repeat aggregate run hit two unchanged regex-worker timing/startup checks:
+  the deadline result exceeded its 500 ms assertion and worker startup reached
+  its 2-second limit. The exact unchanged file then passed 5/5 focused checks,
+  and an unchanged default aggregate retry passed 123/123. The file matches
+  the clean baseline byte-for-byte, but these failures were not separately
+  reproduced on that baseline. Timing sensitivity remains a verification
+  limitation; no worker source, test thresholds, or hosted gates were changed.
 - No new Windows bootstrap run, installer, hosted deployment, live-site read,
   packaged runtime capture, or release is claimed by this local repair.
   Verify the exact published commit and served Pages homepage, assets,

@@ -74,8 +74,9 @@ verified. A GitHub Pages deployment is enabled only when its served path,
 assets, and metadata have been checked. The site never presents an unreleased
 build as available and never hosts the installed runtime as a substitute.
 
-The project-Pages workflow stages the actual base-path export before uploading
-it. See [Pages publication](pages-publication.md) for local commands, artifact
+The pending project-Pages workflow update stages the actual base-path export
+before uploading it; the source-preservation branch retains existing workflows.
+See [Pages publication](pages-publication.md) for local commands, artifact
 requirements, and the remaining independent deployment checks.
 
 ## Design parity
