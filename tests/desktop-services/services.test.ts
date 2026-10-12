@@ -161,10 +161,18 @@ describe("desktop services", () => {
   });
 
   it("validates schedules and keeps editor previews allowlisted", async () => {
-    const { services } = await service();
+    const { root, services } = await service();
     const schedule = services.validateSchedule({ schemaVersion: 1, timezone: "America/Toronto", rules: [{ id: "evening", label: "Evening", enabled: true, priority: 1, startTime: "18:00", endTime: "20:00", weekdays: "every-day", source: { kind: "local" }, values: { theme: "dark" }, updatedAt: new Date().toISOString() }] });
     expect(services.resolveSchedule({ theme: "light" }, schedule, new Date("2026-09-04T23:00:00Z")).values.theme).toBe("dark");
-    expect(services.editorLaunchPreview("vscode", "C:\\Projects", "folder").args).toEqual(["--new-window", "C:\\Projects"]);
+    const target = join(root, "Projects with spaces");
+    const folderPreview = services.editorLaunchPreview("vscode", target, "folder");
+    expect(folderPreview.target).toBe(target);
+    expect(folderPreview.args).toEqual(["--new-window", target]);
+    expect(services.editorLaunchPreview("vscode", target, "file").args).toEqual([target]);
+    expect(services.editorLaunchPreview("unlisted-editor" as never, target, "folder").allowed).toBe(false);
+    for (const invalid of ["", "path\0suffix", "path\nsuffix", "path\rsuffix", "a".repeat(4_097)]) {
+      expect(() => services.editorLaunchPreview("vscode", invalid, "folder")).toThrow("editor target is invalid");
+    }
   });
 
   it("persists an honest unsigned updater state", async () => {
